@@ -275,6 +275,19 @@ const AUTH = (() => {
   /** Kompletter Anmelde-Ablauf beim Seitenstart.
    *  @returns {Promise<"ok"|"redirecting"|{error:string}>} */
   async function signIn() {
+    // PKCE braucht crypto.subtle, und das gibt es nur im sicheren Kontext.
+    // Über http:// ist es schlicht undefiniert – ohne diese Prüfung scheitert
+    // die Anmeldung mit „Cannot read properties of undefined (reading
+    // 'digest')“, einer Meldung, die niemanden zur Ursache führt.
+    // Tritt auf, wenn die Seite über http://crm.dihag.de/ aufgerufen wird,
+    // solange in den Pages-Einstellungen „Enforce HTTPS“ aus ist.
+    if (!window.isSecureContext || !crypto?.subtle) {
+      return { error: "Diese Seite muss über HTTPS aufgerufen werden – die "
+        + "Anmeldung braucht Web Crypto, und das steht nur im sicheren Kontext "
+        + "zur Verfügung. Bitte " + location.href.replace(/^http:/, "https:")
+        + " verwenden." };
+    }
+
     if (location.search.includes("code=") || location.search.includes("error=")) {
       const r = await handleRedirect();
       if (r !== "none") return r;
