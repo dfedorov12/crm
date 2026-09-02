@@ -375,13 +375,28 @@ hilft nicht.
 
 ---
 
-## Optional: Skriptgestützt statt geklickt
+## Statt zu klicken: `setup-crm.ps1`
 
-`scripts/Setup-SharePointLists.ps1` legt alle fünf Listen samt Spalten an.
-Empfehlenswert, weil Test- und Produktivumgebung dann garantiert identisch
-sind und ein Neuaufbau zehn Minuten statt zwei Stunden dauert.
+Liegt im Wurzelverzeichnis und macht alles aus diesem Dokument in einem
+Durchlauf — Teil A und Teil B, dazu den Eintrag in `AppPermissions`:
 
-Voraussetzung: PnP.PowerShell und eine App-Registrierung mit
-SharePoint-Berechtigung — seit 2024 bringt PnP keine eigene mit. Unsere
-Registrierung lässt sich dafür mitbenutzen, wenn zusätzlich die Plattform
-*Mobile Geräte und Desktopanwendungen* mit `http://localhost` hinterlegt wird.
+```powershell
+Connect-MgGraph -Scopes "Sites.Manage.All","Sites.ReadWrite.All"
+./setup-crm.ps1 -NurPruefen     # zeigt nur, was fehlt
+./setup-crm.ps1
+```
+
+Wiederholbar: Vorhandenes wird erkannt und nicht angefasst. Die Spalten
+entstehen mit den technischen Namen aus den Tabellen oben, das
+`_x0020_`-Problem tritt also gar nicht erst auf.
+
+**Es braucht kein PnP.** Das Modul `Microsoft.Graph` reicht und benötigt
+keine eigene App-Registrierung — damit entfällt auch der Abschnitt
+`docs/01` §5 samt der Plattform *Mobile Geräte und Desktopanwendungen*.
+
+Zwei Dinge kann das Skript nicht:
+
+- **Anlagen in `CRM_ImportRuns` aktivieren.** Über Graph ist der Schalter
+  nicht erreichbar; einmal von Hand unter Listeneinstellungen ▸ Erweitert.
+- **Die Site anlegen**, ohne eine Microsoft-365-Gruppe zu erzeugen. Mit
+  `-SiteAnlegen` tut es das bewusst; sonst nennt es die Alternativen.

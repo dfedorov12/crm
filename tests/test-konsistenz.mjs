@@ -67,6 +67,20 @@ pruefe(/^[a-z0-9.-]+\.[a-z]{2,}$/.test(cname), `CNAME ist ein Domänenname (${cn
 pruefe(quelle.includes(cname),
   `CNAME-Domäne ${cname} ist in js/config.js als Umleitungs-URI vermerkt`);
 
+/* ── Einrichtungsskript gegen die Konfiguration ────────────────────────
+   Legt das Skript genau die Listen an, die die App später sucht? Ein
+   Tippfehler auf einer der beiden Seiten fällt sonst erst auf, wenn die
+   Liste angelegt ist und die App sie trotzdem nicht findet.            */
+
+console.log("\nEinrichtungsskript");
+const ps1 = lies("setup-crm.ps1");
+for (const [zweck, name] of Object.entries(CRM_CONFIG.listen))
+  pruefe(ps1.includes(`"${name}"`), `setup-crm.ps1 legt ${name} an (${zweck})`);
+pruefe(ps1.includes(`"${CRM_CONFIG.permList}"`) || ps1.includes(CRM_CONFIG.permList),
+  `setup-crm.ps1 kennt die Rechteliste ${CRM_CONFIG.permList}`);
+pruefe(ps1.includes(CRM_CONFIG.quellDrive),
+  `setup-crm.ps1 kennt die Quellbibliothek ${CRM_CONFIG.quellDrive}`);
+
 /* ── Offene Punkte sichtbar halten ─────────────────────────────────── */
 
 console.log("\nOffene Punkte");
