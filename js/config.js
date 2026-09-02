@@ -22,12 +22,11 @@ const CRM_CONFIG = {
   clientId: "b6078457-e2ab-41e7-91a1-b49dfaf9d532",
 
   /* ── Dataverse ─────────────────────────────────────────────────────
-     Die Organisations-URL der Testumgebung. Aus dem Flow-Export nicht
-     ableitbar – dort steckt sie in der Verbindung, nicht in der Definition.
-     Solange hier KLAEREN_ steht, bleibt die Dataverse-Probe auf der
-     Startseite gesperrt.                                               */
+     Organisations-URL der TESTUMGEBUNG – dieselbe, in der auch der Altflow
+     arbeitet. Beim Produktivgang ist das der einzige Wert, der sich ändert
+     (vorausgesetzt, es bleibt bei Namen statt GUIDs, siehe unten).       */
 
-  dataverseUrl: "KLAEREN_https://<org>.crm4.dynamics.com",
+  dataverseUrl: "https://dihag-test.crm4.dynamics.com",
   apiVersion:   "v9.2",
 
   // Wird dauerhaft als Band im Kopf angezeigt. "PROD" erscheint rot.
@@ -40,10 +39,9 @@ const CRM_CONFIG = {
      Bibliotheks-GUID 6fcaa8c8-… fest und muss deshalb beim Umzug Test →
      Produktion von Hand nachgezogen werden (Befund B9).
 
-     KLAEREN: Ob „Austausch“ eine eigene Bibliothek oder ein Ordner in
-     „Dokumente“ ist, steht noch nicht fest. Der Pfad stammt aus dem
-     Auslöser des Altflows (/Austausch/Projekt CRM-Timeline). Die
-     Startseite prüft das und zeigt an, was sie gefunden hat.            */
+     Bestätigt am 02.09.2026: „Austausch“ ist eine eigene Dokumentbibliothek,
+     „Projekt CRM-Timeline“ ein Ordner darin, in den Timeline die Mappen
+     legt. Die Startseite prüft beides und meldet, wenn es abweicht.      */
 
   quellSite:   "dihag.sharepoint.com:/sites/IT",
   quellDrive:  "Austausch",

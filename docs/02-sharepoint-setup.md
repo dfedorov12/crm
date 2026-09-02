@@ -44,10 +44,10 @@ Die App setzt diese Spalten nach dem Lauf per Graph. Sie **verschiebt und
 löscht keine Dateien** — ein Verschieben würde die Item-ID entwerten, auf die
 das Protokoll verweist.
 
-Bitte bestätigen: Heißt die Bibliothek wirklich `Austausch` mit Unterordner
-`Projekt CRM-Timeline`? Der Pfad stammt aus dem Auslöser des Altflows, dort
-steht `/Austausch/Projekt CRM-Timeline` — der erste Teil kann auch ein Ordner
-innerhalb von „Dokumente" sein.
+**Bestätigt am 02.09.2026:** `Austausch` ist eine eigene Dokumentbibliothek,
+`Projekt CRM-Timeline` ein Ordner darin — dorthin legt Timeline die Mappen.
+`js/config.js` steht entsprechend auf `quellDrive: "Austausch"` und
+`quellOrdner: "/Projekt CRM-Timeline"`.
 
 ---
 

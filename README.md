@@ -101,6 +101,10 @@ Die `hauptAdmins` aus `js/config.js` haben immer `admin` — sonst wäre beim
 ersten Aufruf niemand drin, solange die Rechteliste keinen Eintrag für `crm`
 enthält.
 
+**Wie man jemanden einträgt — welche Felder, welche Rolle, welche
+Fallstricke:** [`docs/09-rechte-eintragen.md`](docs/09-rechte-eintragen.md).
+Neue Spalten sind dafür nicht nötig, die Liste gibt es schon.
+
 ---
 
 ## Der Prozess
@@ -126,6 +130,7 @@ Positionen ersetzen → Vertriebsprozess → Abschlüsse.
 | `docs/07-review-crm-anbindung.md` | Prüfung gegen die Dataverse-Web-API |
 | `docs/08-frontend-github.md` | **Diese Bauweise, und warum sie von der ersten Fassung abweicht** |
 | `docs/01`–`03` | App-Registrierung, SharePoint, Dataverse einrichten |
+| `docs/09-rechte-eintragen.md` | Zugriff freischalten — Kurzanleitung zu `AppPermissions` |
 | `config/import-profile.dihag.json` | Echtes Profil, aus dem Flow-Export abgeleitet |
 
 ---

@@ -600,9 +600,8 @@ scharf geschaltet werden.
 
 **Blockierend für den Bau:**
 
-- [ ] `dataverseUrl` — URL der **Testumgebung**. Aus dem Flow nicht ableitbar,
-      dort steckt sie in der Verbindung. Die Produktiv-URL wird erst beim
-      Produktivgang gebraucht.
+- [x] ~~`dataverseUrl`~~ — `https://dihag-test.crm4.dynamics.com`, eingetragen
+      am 02.09.2026. Die Produktiv-URL wird erst beim Produktivgang gebraucht.
 - [ ] **Alternativschlüssel an `opportunity`** für die Opp-ID. Ohne den bleibt
       es beim `startswith`-Präfixvergleich, siehe Befund B2. Falls es das Feld
       schon gibt: logischer Name. Falls nicht: anlegen.
@@ -611,12 +610,9 @@ scharf geschaltet werden.
 - [ ] Führt die Spalte `Firma` die **Kundennummer** oder den Namen? Der
       Flow-Filter steht ohne Anführungszeichen, das deutet auf eine Zahl;
       daneben existiert `Firmaname`.
-- [ ] Heißt die Bibliothek unter `/sites/IT` tatsächlich **Austausch**, mit
-      Unterordner `Projekt CRM-Timeline`? Aus dem Auslöser-Pfad
-      `/Austausch/Projekt CRM-Timeline` abgeleitet, aber der erste Teil kann
-      auch ein Ordner in „Dokumente" sein.
-      → **Der Selbsttest auf der Startseite beantwortet das.** Er erkennt
-      beide Fälle und nennt die Werte, die dann in `js/config.js` gehören.
+- [x] ~~Heißt die Bibliothek unter `/sites/IT` tatsächlich **Austausch**?~~
+      Ja — eigene Dokumentbibliothek, `Projekt CRM-Timeline` ist der Ordner
+      darin, in den Timeline die Mappen legt. Bestätigt am 02.09.2026.
 
 **Neu, aus der Umstellung auf die Hausvorlage (`docs/08`):**
 
