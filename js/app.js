@@ -314,8 +314,36 @@ const APP = (() => {
           if (istOffen(C.dataverseUrl))
             return { ok: false, text: "dataverseUrl in js/config.js noch nicht gesetzt "
               + "– die URL der Testumgebung fehlt (CLAUDE.md §13)." };
-          const w = await DV.whoAmI();
-          return { ok: true, text: `UserId ${w.UserId} · Organisation ${w.OrganizationId}` };
+          try {
+            const w = await DV.whoAmI();
+            return { ok: true, text: `UserId ${w.UserId} · Organisation ${w.OrganizationId}` };
+          } catch (e) {
+            // Der häufigste Fall ist nicht „abgelaufen“, sondern: die
+            // Berechtigung Dynamics CRM user_impersonation fehlt an der
+            // Registrierung oder ist ohne Administratorzustimmung. Entra
+            // sagt das in error_description; das steht jetzt hier.
+            if (e.res === "dataverse" || e.code === "kein_refresh_token") {
+              return {
+                ok: false,
+                text: e.message + (e.interaktion
+                  ? "  Ein Anmeldeversuch mit Zustimmung kann das beheben."
+                  : "  Das ist keine abgelaufene Sitzung – prüfe in der "
+                    + "Registrierung, ob „Dynamics CRM · user_impersonation“ "
+                    + "mit Administratorzustimmung eingetragen ist (docs/01 §2)."),
+                aktion: e.interaktion
+                  ? { label: "Zustimmung erteilen",
+                      fn: () => AUTH.startLogin("consent", "dataverse") }
+                  : null
+              };
+            }
+            // 401/403 heißt: Token da, aber der Benutzer fehlt im
+            // Environment oder hat keine Sicherheitsrolle (docs/01 §4).
+            if (e.status === 403)
+              return { ok: false, text: "Token gültig, aber HTTP 403: Benutzer ist im "
+                + "Environment nicht aktiviert oder hat keine Sicherheitsrolle "
+                + "(docs/01 §3). " + e.message };
+            return { ok: false, text: e.detail || e.message };
+          }
         }
       }
     ];
@@ -330,16 +358,27 @@ const APP = (() => {
 
     for (let i = 0; i < liste.length; i++) {
       const ziel = $("chk" + i);
-      let ok = false, text = "";
+      let ok = false, text = "", aktion = null;
       try {
         const r = await liste[i].lauf();
-        ok = r.ok; text = r.text;
+        ok = r.ok; text = r.text; aktion = r.aktion;
       } catch (e) {
         ok = false; text = e.detail || e.message;
       }
       ziel.className = "check " + (ok ? "gut" : "schlecht");
       ziel.querySelector(".st").textContent = ok ? "✓" : "!";
       ziel.querySelector("small").textContent = text;
+
+      // Eine Prüfung darf einen Weg aus dem Fehler anbieten. Ohne das bleibt
+      // nur die Meldung, und der nächste Schritt steht in einer Doku.
+      if (aktion) {
+        const b = document.createElement("button");
+        b.className = "btn sec sm";
+        b.style.marginTop = "8px";
+        b.textContent = aktion.label;
+        b.onclick = aktion.fn;
+        ziel.lastElementChild.appendChild(b);
+      }
     }
   }
 

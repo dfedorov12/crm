@@ -112,12 +112,19 @@ const AUTH = (() => {
 
   /* ── Refresh-Token einlösen ───────────────────────────────────────── */
 
-  /** @returns {Promise<string|null>} Access-Token oder null, wenn eine
-   *  Interaktion nötig ist. */
+  /** Refresh-Token für eine Ressource einlösen.
+   *  @returns {Promise<{token?:string, fehler?:string, code?:string,
+   *                     interaktion?:boolean}>}
+   *
+   *  Der Fehler wird durchgereicht, nicht verschluckt. Entra liefert in
+   *  `error_description` den AADSTS-Code und einen Klartext, der die Ursache
+   *  benennt – etwa AADSTS65001, wenn für den Dataverse-Scope keine
+   *  Zustimmung erteilt wurde. Ohne das steht in der Oberfläche eine
+   *  Vermutung statt des Grundes, und man sucht an der falschen Stelle. */
   async function einloesen(rt, res) {
     let scope;
     try { scope = [...scopesFuer(res), "offline_access"].join(" "); }
-    catch { return null; }
+    catch (e) { return { fehler: e.message, code: "konfiguration" }; }
 
     const r = await fetch(TU, {
       method: "POST",
@@ -135,11 +142,21 @@ const AUTH = (() => {
       // invalid_grant heißt: dieser Refresh-Token ist verbraucht oder älter
       // als 24 h. Weg damit, sonst wird er endlos weiterprobiert.
       if (d.error === "invalid_grant") ss.del(K_RT);
-      return null;
+      const roh = d.error_description || d.error || "unbekannter Fehler";
+      return {
+        fehler: String(roh).split(/\r?\n/)[0],   // erste Zeile, der Rest ist Ablaufspur
+        code: d.error,
+        // Lässt sich das durch eine interaktive Anmeldung heilen? Bei
+        // fehlender Zustimmung und abgelaufener Sitzung ja; bei einer
+        // fehlenden API-Berechtigung an der Registrierung nicht – dann
+        // braucht es erst einen Administrator.
+        interaktion: /interaction_required|consent_required|invalid_grant|AADSTS(65001|50076|50079|53)/i
+          .test(String(d.error) + " " + roh)
+      };
     }
     if (d.refresh_token) ss.set(K_RT, d.refresh_token);   // Rotation
     speichern(res, d.access_token, Date.now() + (d.expires_in || 3600) * 1000);
-    return d.access_token;
+    return { token: d.access_token };
   }
 
   /** Access-Token für eine Ressource.
@@ -150,18 +167,20 @@ const AUTH = (() => {
     if (c) return c;
 
     const rt = ss.get(K_RT);
+    let letzter = null;
     if (rt) {
-      const t = await einloesen(rt, res);
-      if (t) return t;
+      letzter = await einloesen(rt, res);
+      if (letzter.token) return letzter.token;
     }
-    if (res !== "graph") {
-      const e = new Error(`Kein Token für ${res}. Die Zustimmung fehlt oder die `
-        + "Sitzung ist älter als 24 Stunden – bitte neu anmelden.");
-      e.code = "interaction_required";
-      e.res = res;
-      throw e;
-    }
-    throw new Error("Nicht angemeldet");
+
+    const e = new Error(letzter
+      ? `Kein Token für ${res} – ${letzter.fehler}`
+      : `Kein Token für ${res} – es liegt kein Refresh-Token vor. `
+        + "Die Sitzung ist abgelaufen, bitte neu anmelden.");
+    e.code = letzter?.code || "kein_refresh_token";
+    e.interaktion = letzter ? letzter.interaktion : true;
+    e.res = res;
+    throw e;
   }
 
   /** Liest die Nutzlast eines Access-Tokens aus – nur zur Diagnose. Die
@@ -294,7 +313,7 @@ const AUTH = (() => {
     }
     if (ausSpeicher("graph")) return "ok";
     const rt = ss.get(K_RT);
-    if (rt && await einloesen(rt, "graph")) return "ok";
+    if (rt && (await einloesen(rt, "graph")).token) return "ok";
     await startLogin("none");
     return "redirecting";
   }

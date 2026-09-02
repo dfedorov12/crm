@@ -85,6 +85,54 @@ und der Login bricht ab.
 
 ---
 
+### Stand am 02.09.2026 — und warum Dataverse noch nicht geht
+
+Ausgelesen aus der Registrierung:
+
+| | |
+|---|---|
+| SPA-Umleitungs-URIs | `https://crm.dihag.de`, `https://dfedorov12.github.io/crm/` ✅ |
+| Deklarierte Berechtigungen | nur **Graph `User.Read`** |
+| Tatsächlich erteilte Zustimmung | Graph: `User.Read Sites.ReadWrite.All offline_access`, tenantweit (`AllPrincipals`) |
+| Dataverse | **keine Zustimmung** — der Dienstprinzipal „Dataverse“ existiert im Tenant, diese App hat aber keinen Zugriff darauf |
+
+`Sites.ReadWrite.All` funktioniert, obwohl es nicht deklariert ist: Entra
+erlaubt Zustimmung zu Scopes, die nicht statisch an der Registrierung stehen,
+und jemand hat sie tenantweit erteilt.
+
+**Für Dataverse geht das nicht auf demselben Weg.** Die App holt das
+Dataverse-Token über `grant_type=refresh_token` — und ein Refresh-Token-Austausch
+kann keine Zustimmung erzeugen. Er scheitert mit `AADSTS65001`, solange für
+`user_impersonation` keine Zustimmung vorliegt. Genau das meldet der
+Selbsttest.
+
+Zwei Wege:
+
+1. **Selbst zustimmen.** Auf der Startseite steht bei der fehlgeschlagenen
+   Prüfung der Knopf **„Zustimmung erteilen“**. Er startet eine Anmeldung mit
+   `prompt=consent` für den Dataverse-Scope. Reicht, wenn der Tenant
+   Benutzerzustimmung für diese API erlaubt — und ändert nichts für andere.
+2. **Sauber an der Registrierung nachziehen**, wie oben beschrieben. Damit
+   steht die Berechtigung dort, wo man sie sucht, und gilt für alle:
+
+```bash
+az ad app permission add --id b6078457-e2ab-41e7-91a1-b49dfaf9d532 \
+  --api 00000007-0000-0000-c000-000000000000 \
+  --api-permissions 78ce3f0f-a1ce-49c2-8cde-64b5c0896db4=Scope
+az ad app permission admin-consent --id b6078457-e2ab-41e7-91a1-b49dfaf9d532
+```
+
+Bei der Gelegenheit gehört auch `Sites.ReadWrite.All` an die Registrierung —
+heute steht es nur in der Zustimmung, nicht in der Deklaration. Wer die
+Registrierung ansieht, um zu verstehen, was die App darf, sieht es dort nicht.
+
+**Kleinigkeit:** Die erste Umleitungs-URI steht ohne Schrägstrich am Ende
+(`https://crm.dihag.de`). Bei leerem Pfad normalisiert Entra das, deshalb
+funktioniert die Anmeldung. Wer die Adresse je um einen Pfad ergänzt, muss
+den Schrägstrich mitdenken.
+
+---
+
 ## 3. Voraussetzungen im CRM
 
 Die App-Registrierung allein reicht nicht:
