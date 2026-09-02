@@ -122,9 +122,44 @@ az ad app permission add --id b6078457-e2ab-41e7-91a1-b49dfaf9d532 \
 az ad app permission admin-consent --id b6078457-e2ab-41e7-91a1-b49dfaf9d532
 ```
 
-Bei der Gelegenheit gehört auch `Sites.ReadWrite.All` an die Registrierung —
-heute steht es nur in der Zustimmung, nicht in der Deklaration. Wer die
-Registrierung ansieht, um zu verstehen, was die App darf, sieht es dort nicht.
+### ⚠️ Fallstrick: `admin-consent` entzieht, was nicht deklariert ist
+
+Genau das ist am 02.09.2026 passiert und kostete eine Runde.
+
+`az ad app permission admin-consent` erteilt **exakt das, was in
+`requiredResourceAccess` an der Registrierung steht** — und ersetzt damit die
+bestehende Zustimmung, statt sie zu ergänzen. Vorher waren für Graph
+`User.Read`, `Sites.ReadWrite.All` und `offline_access` zugestimmt, deklariert
+war aber nur `User.Read`. Nach dem Befehl:
+
+| | vorher | nach `admin-consent` |
+|---|---|---|
+| Graph | `User.Read Sites.ReadWrite.All offline_access` | **nur `User.Read`** |
+| Dataverse | keine | `user_impersonation` ✅ |
+
+Zwei Folgen, beide unangenehm:
+
+- **`offline_access` weg ⇒ kein Refresh-Token.** Damit fällt der ganze
+  Mechanismus für die zweite Ressource aus — das Dataverse-Token wird über den
+  Refresh-Token geholt. Die Zustimmung für Dataverse allein nützt nichts.
+- **`Sites.ReadWrite.All` weg ⇒ kein SharePoint.** Rechteliste, Dateiliste,
+  Konfigurationslisten: alle nicht mehr lesbar.
+
+**Regel daraus: erst deklarieren, dann zustimmen.** Nie umgekehrt, und nie
+`admin-consent` auf eine Registrierung, deren Deklaration unvollständig ist.
+
+Deklariert sind seit dem 02.09.2026 alle vier Berechtigungen. Damit erteilt
+der folgende Befehl sie vollständig und der Fehler wiederholt sich nicht:
+
+```bash
+az ad app permission admin-consent --id b6078457-e2ab-41e7-91a1-b49dfaf9d532
+```
+
+Danach prüfen — es müssen zwei Zeilen mit allen vier Scopes erscheinen:
+
+```bash
+az rest --method GET --url "https://graph.microsoft.com/v1.0/oauth2PermissionGrants?\$filter=clientId eq 'b47d7286-816a-46e1-bfa9-f281126155d9'" --query "value[].{typ:consentType, scopes:scope}" -o table
+```
 
 **Kleinigkeit:** Die erste Umleitungs-URI steht ohne Schrägstrich am Ende
 (`https://crm.dihag.de`). Bei leerem Pfad normalisiert Entra das, deshalb
