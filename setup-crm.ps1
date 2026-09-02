@@ -41,7 +41,14 @@ param(
     # der Standard.
     [switch] $SiteAnlegen,
 
-    [switch] $NurPruefen
+    [switch] $NurPruefen,
+
+    # Graph-Token statt Connect-MgGraph. Damit laeuft das Skript ohne das
+    # Modul Microsoft.Graph (rund 500 MB), etwa mit der Azure CLI:
+    #   $t = az account get-access-token --resource https://graph.microsoft.com `
+    #        --query accessToken -o tsv
+    #   ./setup-crm.ps1 -AccessToken $t
+    [string] $AccessToken
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,6 +56,16 @@ $g = "https://graph.microsoft.com/v1.0"
 
 function Gx {
     param([string]$Method = "GET", [string]$Uri, $Body)
+
+    if ($AccessToken) {
+        $h = @{ Authorization = "Bearer $AccessToken" }
+        if ($null -ne $Body) {
+            return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $h `
+                -ContentType "application/json" -Body ($Body | ConvertTo-Json -Depth 8)
+        }
+        return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $h
+    }
+
     if ($null -ne $Body) {
         return Invoke-MgGraphRequest -Method $Method -Uri $Uri `
             -ContentType "application/json" -Body ($Body | ConvertTo-Json -Depth 8)
@@ -70,7 +87,15 @@ if ($NurPruefen) { Warn "Nur-Pruefen-Modus: es wird nichts angelegt." }
 # API-Abfrage wird unlesbar.
 
 function Ensure-Columns($siteId, $listName, $defs) {
-    $cols = (Gx -Uri "$g/sites/$siteId/lists/$listName/columns?`$top=200").value
+    # Im Nur-Pruefen-Modus existiert die Liste womoeglich noch gar nicht.
+    # Dann sind auch ihre Spalten nicht zu pruefen - und ein 404 hier waere
+    # ein Abbruch mitten im Bericht, statt einer Zeile darin.
+    try {
+        $cols = (Gx -Uri "$g/sites/$siteId/lists/$listName/columns?`$top=200").value
+    } catch {
+        Warn "    [$listName] Liste nicht vorhanden - Spalten nicht geprueft."
+        return
+    }
     $vorhanden = @($cols | ForEach-Object { $_.name })
     foreach ($d in $defs) {
         if ($vorhanden -contains $d.name) { continue }

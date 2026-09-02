@@ -52,7 +52,10 @@ const CRM_CONFIG = {
      ändert aber keine Feldzuordnungen (docs/02, Schritt 0).
      Existiert noch nicht – die App läuft trotzdem und meldet es.        */
 
-  konfigSite: "dihag.sharepoint.com:/sites/CRM-Integration",
+  // Achtung auf den Pfad: Der Tenant legt gruppenverbundene Sites unter
+  // /teams/ ab, nicht unter /sites/ – und benutzt dafür den mailNickname
+  // der Gruppe, nicht den Anzeigenamen. Angelegt am 02.09.2026.
+  konfigSite: "dihag.sharepoint.com:/teams/crm-integration",
   listen: {
     profile:  "CRM_ImportProfiles",
     mappings: "CRM_FieldMappings",

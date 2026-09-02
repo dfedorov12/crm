@@ -83,15 +83,23 @@ Eigene Team-Site, getrennt von `/sites/IT`. Damit liegen Quelldaten und
 Steuerung nicht im selben Topf und lassen sich unterschiedlich berechtigen:
 Die Fachabteilung legt Dateien ab, ändert aber keine Feldzuordnungen.
 
-- Name: `CRM-Integration`
-- URL: `https://<tenant>.sharepoint.com/sites/CRM-Integration`
-- Typ: Team-Site (Gruppen-Site ist auch in Ordnung)
-- Berechtigung: die Personen, die importieren dürfen, als **Mitglied**.
-  Nicht "Jeder in der Organisation".
+**Angelegt am 02.09.2026** als private Microsoft-365-Gruppe:
 
-Die URL bitte notieren, sie wandert als `configSiteUrl` in
-`public/runtime-config.json`. Die Quellbibliothek aus Teil A steht dort
-getrennt als `sourceLibrary`.
+| | |
+|---|---|
+| Anzeigename | `CRM-Integration` |
+| Gruppen-ID | `a1b40543-0cd4-4324-9043-6f8372dfa259` |
+| Adresse | `crm-integration@dihag.onmicrosoft.com` |
+| **Site-URL** | **`https://dihag.sharepoint.com/teams/crm-integration`** |
+
+> ⚠️ **Nicht `/sites/CRM-Integration`.** Der Tenant legt gruppenverbundene
+> Sites unter dem verwalteten Pfad `/teams/` ab und benutzt dafür den
+> `mailNickname` der Gruppe, nicht den Anzeigenamen. Wer die Adresse aus dem
+> Anzeigenamen ableitet, bekommt `itemNotFound`. In `js/config.js` steht
+> deshalb `konfigSite: "dihag.sharepoint.com:/teams/crm-integration"`.
+
+Berechtigung: die Personen, die importieren dürfen, als **Mitglied** der
+Gruppe. Nicht „Jeder in der Organisation".
 
 ---
 
@@ -394,7 +402,36 @@ entstehen mit den technischen Namen aus den Tabellen oben, das
 keine eigene App-Registrierung — damit entfällt auch der Abschnitt
 `docs/01` §5 samt der Plattform *Mobile Geräte und Desktopanwendungen*.
 
-Zwei Dinge kann das Skript nicht:
+### Womit es NICHT läuft: der Token der Azure CLI
+
+Naheliegend, weil `az` meist schon angemeldet ist:
+
+```powershell
+$t = az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv
+./setup-crm.ps1 -AccessToken $t
+```
+
+**Funktioniert nicht.** Der Token der Azure CLI enthält keinen einzigen
+`Sites.*`-Scope — nur `Directory.AccessAsUser.All` und `Group.ReadWrite.All`.
+Lesen und Gruppen anlegen geht damit, Listen und Spalten anlegen endet in
+`403 Forbidden`.
+
+Nachfordern lässt sich der Scope auch nicht:
+
+```
+AADSTS65002: Consent between first party application '04b07795-…' and first
+party resource '00000003-…' must be configured via preauthorization
+```
+
+Microsoft hat die Azure CLI für `Sites.Manage.All` schlicht nicht
+vorautorisiert. Das ist keine Zustimmungsfrage und auch durch interaktives
+`az login --scope` nicht zu beheben.
+
+**Es braucht also einen Token aus einer Registrierung mit
+`Sites.ReadWrite.All`** — entweder `Connect-MgGraph` (Modul
+`Microsoft.Graph`) oder ein Gerätecode-Flow über die eigene Registrierung.
+
+### Zwei Dinge kann das Skript nicht:
 
 - **Anlagen in `CRM_ImportRuns` aktivieren.** Über Graph ist der Schalter
   nicht erreichbar; einmal von Hand unter Listeneinstellungen ▸ Erweitert.
