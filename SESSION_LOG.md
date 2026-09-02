@@ -93,10 +93,17 @@ erst, wenn diese Adresse in der Registrierung unter der SPA-Plattform steht.
 - **Umleitungs-URI `https://crm.dihag.de/`** in der Registrierung unter der
   Plattform *Single-Page-Anwendung*. Ohne sie endet jede Anmeldung in
   `AADSTS50011`. Einziger Punkt, der die Seite heute unbenutzbar macht.
-- `dataverseUrl` der Testumgebung — bis dahin bleibt die Dataverse-Probe
-  gesperrt und meldet das auch so
 - Alternativschlüssel an `opportunity` (Befund B2)
 - ~~DNS für `crm.dihag.de`~~ — löst bereits auf, HTTPS erzwungen
+- ~~`dataverseUrl`~~ — `https://dihag-test.crm4.dynamics.com`, eingetragen
+- ~~Quellbibliothek~~ — `Austausch` ist eine eigene Dokumentbibliothek,
+  `Projekt CRM-Timeline` der Ordner darin. Konfiguration stimmte bereits.
+
+**Dazu.** `docs/09-rechte-eintragen.md` — Kurzanleitung, wie Zugriff über
+`AppPermissions` freigeschaltet wird. Die Liste existiert bereits und wird von
+`rundumdenjob`, `powerbi` und `umfrage1` mitgenutzt; für `crm` kommen nur
+Zeilen dazu, keine Spalten. Die eigentliche Entscheidung steckt in der Rolle
+`editor` — wer sie hat, schreibt ins CRM.
 
 **Als Nächstes.** Phase 3: `js/spFiles.js` und `js/excel.js` — Dateiliste aus
 der Bibliothek, Datei über `@microsoft.graph.downloadUrl` laden, mit SheetJS
