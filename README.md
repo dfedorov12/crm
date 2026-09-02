@@ -161,6 +161,7 @@ for f in js/*.js tests/*.mjs; do node --check "$f"; done && node tests/test-kons
 wiederholbar, Vorhandenes wird nicht angefasst:
 
 ```powershell
+Install-Module Microsoft.Graph.Authentication -Scope CurrentUser
 Connect-MgGraph -Scopes "Sites.Manage.All","Sites.ReadWrite.All"
 ./setup-crm.ps1 -NurPruefen     # erst ansehen, was fehlt
 ./setup-crm.ps1                 # dann anlegen
@@ -169,11 +170,14 @@ Connect-MgGraph -Scopes "Sites.Manage.All","Sites.ReadWrite.All"
 Vier Schritte: Statusspalten in der Quellbibliothek, Konfigurationssite
 prüfen, die fünf `CRM_*`-Listen samt Spalten, Eintrag in `AppPermissions`.
 
-Fehlt die Site `CRM-Integration`, nennt das Skript drei Wege — sie mit
-`-SiteAnlegen` als Microsoft-365-Gruppe erzeugen, von Hand anlegen, oder die
-Listen mit `-KonfigSite` auf `/sites/IT` legen. Letzteres ist bequemer, hebt
-aber die Trennung auf: die Fachabteilung legt Dateien ab, soll aber keine
-Feldzuordnungen ändern.
+Es reicht das Teilmodul `Microsoft.Graph.Authentication` (wenige MB) — das
+Skript benutzt nur `Invoke-MgGraphRequest`. **Der Token der Azure CLI reicht
+nicht:** er trägt keinen `Sites.*`-Scope, und Microsoft hat die CLI dafür
+nicht vorautorisiert. Begründung in [`docs/02`](docs/02-sharepoint-setup.md).
+
+Die Konfigurationssite ist angelegt und liegt unter
+`https://dihag.sharepoint.com/teams/crm-integration` — nicht unter
+`/sites/CRM-Integration`, siehe `docs/02`.
 
 ## Was zuerst
 

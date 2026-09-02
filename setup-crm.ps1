@@ -9,13 +9,20 @@
 #  angefasst, Fehlendes ergaenzt.
 #
 #  VORAUSSETZUNG
-#      Install-Module Microsoft.Graph -Scope CurrentUser
-#      Connect-MgGraph -Scopes "Sites.Manage.All","Sites.ReadWrite.All",`
-#                              "Group.ReadWrite.All"
+#      Install-Module Microsoft.Graph.Authentication -Scope CurrentUser
+#      Connect-MgGraph -Scopes "Sites.Manage.All","Sites.ReadWrite.All"
 #      ./setup-crm.ps1
 #
-#  Group.ReadWrite.All wird nur fuer -SiteAnlegen gebraucht. Ohne den
-#  Schalter reicht Sites.Manage.All.
+#  Es reicht das TEILMODUL Microsoft.Graph.Authentication (wenige MB) -
+#  das Skript benutzt nur Invoke-MgGraphRequest. Das Gesamtpaket
+#  Microsoft.Graph laedt rund 500 MB und wird nicht gebraucht.
+#
+#  Group.ReadWrite.All wird nur fuer -SiteAnlegen gebraucht.
+#
+#  NICHT geeignet: der Token der Azure CLI. Er traegt keinen Sites.*-Scope,
+#  und Microsoft hat die CLI dafuer nicht vorautorisiert (AADSTS65002).
+#  Lesen und Gruppen anlegen geht damit, Listen anlegen nicht. Details in
+#  docs/02.
 #
 #  ACHTUNG: Das Anlegen von Listen scheitert mit 403, wenn das angemeldete
 #  Konto auf der Site keinen Vollzugriff hat - SharePoint-Berechtigungen
@@ -27,8 +34,11 @@ param(
     [string] $QuellSite   = "dihag.sharepoint.com:/sites/IT",
     [string] $QuellDrive  = "Austausch",
 
-    # Konfigurationssite – Steuerung und Protokoll
-    [string] $KonfigSite  = "dihag.sharepoint.com:/sites/CRM-Integration",
+    # Konfigurationssite – Steuerung und Protokoll.
+    # /teams/, nicht /sites/: der Tenant legt gruppenverbundene Sites unter
+    # dem verwalteten Pfad /teams/ ab und benutzt den mailNickname der
+    # Gruppe, nicht ihren Anzeigenamen.
+    [string] $KonfigSite  = "dihag.sharepoint.com:/teams/crm-integration",
 
     # Rechteliste
     [string] $PermSite    = "dihag.sharepoint.com:/sites/IT",
