@@ -69,12 +69,34 @@ wieder raus.
 **Geprüft.** `node --check` über alle sechs JS-Dateien und das Testskript,
 `tests/test-konsistenz.mjs` grün (28 Prüfungen). Startseite örtlich gerendert.
 
+**Veröffentlicht.** `dfedorov12/crm`, öffentlich, Pages aus `main` ▸ `/`.
+Vor dem Push wurden personenbezogene Daten pseudonymisiert: in `docs/06`,
+`CLAUDE.md` und dem Importprofil standen zwei benannte Personen bei fremden
+Unternehmen sowie eine Verteilungstabelle mit fünf Mitarbeiteradressen. Zahlen
+und fachliche Schlüsse sind unverändert.
+
+`crm.dihag.de` löste bereits auf — der DNS-Eintrag war entgegen der Annahme
+in `docs/08` nicht offen. Beim ersten Aufruf der Live-Seite fiel dafür ein
+echter Fehler auf: über `http://` ist `crypto.subtle` nicht verfügbar, und
+die Anmeldung scheiterte mit „Cannot read properties of undefined (reading
+'digest')“ — eine Meldung, die niemanden zur Ursache führt. Zwei Konsequenzen:
+„Enforce HTTPS“ in den Pages-Einstellungen gesetzt, und `signIn()` prüft nun
+`isSecureContext` und nennt die https-Adresse. Die Prüfung bleibt drin, auch
+wenn die Umleitung sie heute überflüssig macht.
+
+Über HTTPS läuft der Ablauf durch: stiller SSO-Versuch, dann Kontoauswahl mit
+`redirect_uri=https://crm.dihag.de/`. Abgeschlossen werden kann die Anmeldung
+erst, wenn diese Adresse in der Registrierung unter der SPA-Plattform steht.
+
 **Offen, blockierend.**
 
+- **Umleitungs-URI `https://crm.dihag.de/`** in der Registrierung unter der
+  Plattform *Single-Page-Anwendung*. Ohne sie endet jede Anmeldung in
+  `AADSTS50011`. Einziger Punkt, der die Seite heute unbenutzbar macht.
 - `dataverseUrl` der Testumgebung — bis dahin bleibt die Dataverse-Probe
   gesperrt und meldet das auch so
-- DNS-Eintrag für `crm.dihag.de` und die Umleitungs-URI in der Registrierung
 - Alternativschlüssel an `opportunity` (Befund B2)
+- ~~DNS für `crm.dihag.de`~~ — löst bereits auf, HTTPS erzwungen
 
 **Als Nächstes.** Phase 3: `js/spFiles.js` und `js/excel.js` — Dateiliste aus
 der Bibliothek, Datei über `@microsoft.graph.downloadUrl` laden, mit SheetJS
