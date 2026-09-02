@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM-Schnittstelle · DIHAG Foundry Group</title>
+<link rel="icon" href="assets/dihag-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ══ Anmeldung / Start ══════════════════════════════════════════ -->
+<div id="boot">
+  <div class="boot-logo"><img src="assets/dihag-logo.png" alt="DIHAG Foundry Group"></div>
+  <div class="boot-sub">CRM-Schnittstelle</div>
+  <div class="spinner" id="bootSpin"></div>
+  <div id="bootTxt">Anmeldung läuft …</div>
+  <div id="bootErr" hidden></div>
+  <button class="btn" id="bootBtn" hidden>Mit Microsoft anmelden</button>
+</div>
+
+<!-- ══ Kein Zugriff ═══════════════════════════════════════════════ -->
+<div id="noAccess" hidden>
+  <div class="box">
+    <div style="font-size:52px">🔒</div>
+    <h2>Kein Zugriff</h2>
+    <p id="naMsg"></p>
+    <div class="row" style="justify-content:center;margin-top:18px">
+      <button class="btn" id="naReq">📧 Freigabe anfragen</button>
+      <button class="btn sec" id="naOut">Abmelden</button>
+    </div>
+    <p class="ok" id="naSent" hidden style="margin-top:16px">✓ Anfrage wurde an die IT gesendet.</p>
+    <p class="err" id="naErr" hidden style="margin-top:16px"></p>
+    <p id="naWarum"></p>
+  </div>
+</div>
+
+<!-- ══ Anwendung ══════════════════════════════════════════════════ -->
+<div id="app" hidden>
+
+  <header>
+    <div class="hdr-top">
+      <div class="hdr-brand">
+        <img src="assets/dihag-logo.png" alt="DIHAG Foundry Group">
+        <div class="hdr-sep"></div>
+        <div class="hdr-title">
+          <h1>CRM-Schnittstelle</h1>
+          <span>Timeline → Dynamics 365</span>
+        </div>
+      </div>
+      <div class="hdr-spacer"></div>
+      <span class="umg" id="umgBand">TEST</span>
+      <div class="hdr-user">
+        <div class="who">
+          <b id="uName"></b>
+          <small id="uMeta"></small>
+        </div>
+        <div class="avatar" id="uAvatar"></div>
+        <button class="btn ghost sm" id="btnLogout">Abmelden</button>
+      </div>
+    </div>
+    <nav class="tabs"><div class="inner" id="tabBar"></div></nav>
+  </header>
+
+  <main id="main"></main>
+
+  <footer>
+    DIHAG Foundry Group · CRM-Schnittstelle ·
+    Daten bleiben in SharePoint und Dataverse – GitHub liefert nur den Programmcode aus ·
+    <a href="https://github.com/dfedorov12/crm" target="_blank" rel="noopener">Quellcode</a>
+  </footer>
+</div>
+
+<!-- Reihenfolge = Abhängigkeitsreihenfolge. config.js zuerst, weil alle
+     übrigen Dateien CRM_CONFIG beim Laden auswerten; app.js zuletzt. -->
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/dataverse.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

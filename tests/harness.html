@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test-Harness · CRM-Schnittstelle</title>
+<link rel="stylesheet" href="../css/styles.css">
+<style>
+  body { padding: 24px; }
+  main { max-width: 900px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="page-head">
+    <h2>Test-Harness</h2>
+    <p>Lädt dieselben Dateien wie <code>index.html</code>, aber <b>ohne</b>
+       <code>js/app.js</code> – es startet also keine Anmeldung. Damit lassen
+       sich Ladereihenfolge, Konfiguration und die Ableitung der
+       Umleitungs-URI im Browser prüfen, ohne sich anzumelden.</p>
+  </div>
+  <div class="card">
+    <h4>🩺 Prüfungen</h4>
+    <div id="out"></div>
+  </div>
+</main>
+
+<script src="../js/config.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/graph.js"></script>
+<script src="../js/dataverse.js"></script>
+<script src="../js/data.js"></script>
+<script>
+"use strict";
+
+const out = document.getElementById("out");
+let fehler = 0;
+
+function pruefe(titel, bedingung, text) {
+  if (!bedingung) fehler++;
+  const d = document.createElement("div");
+  d.className = "check " + (bedingung ? "gut" : "schlecht");
+  d.innerHTML = `<span class="st">${bedingung ? "✓" : "!"}</span>
+                 <div><b></b><small></small></div>`;
+  d.querySelector("b").textContent = titel;
+  d.querySelector("small").textContent = text ?? "";
+  out.appendChild(d);
+}
+
+/* Globale Namen – einer je Datei, in Ladereihenfolge. */
+for (const [n, v] of Object.entries({
+  CRM_CONFIG, istOffen: typeof istOffen, AUTH, GRAPH, DV, DATA
+})) pruefe("Global " + n, v !== undefined, typeof v);
+
+/* Umleitungs-URI: „index.html“ weg, Schrägstrich am Ende erzwungen.
+   Genau hier entsteht sonst AADSTS50011. */
+pruefe("Umleitungs-URI endet mit /", AUTH.redirectUri.endsWith("/"), AUTH.redirectUri);
+pruefe("Umleitungs-URI ohne Dateinamen", !/\.html?\/?$/i.test(AUTH.redirectUri),
+       AUTH.redirectUri + "  (hier: der Ordner der Harness, in index.html der App-Ordner)");
+
+/* Offene Werte werden erkannt und gesperrt, statt in einen Netzwerkfehler
+   gegen „https://<org>.crm4.dynamics.com“ zu laufen. */
+pruefe("istOffen erkennt KLAEREN-Werte", istOffen("KLAEREN_x") && !istOffen("https://a.de"));
+
+let dvGesperrt = false, dvText = "";
+try { DV.pruefeKonfiguration(); dvText = "dataverseUrl ist gesetzt: " + CRM_CONFIG.dataverseUrl; }
+catch (e) { dvGesperrt = true; dvText = e.message; }
+pruefe("Dataverse-Zugriff", istOffen(CRM_CONFIG.dataverseUrl) ? dvGesperrt : !dvGesperrt,
+       istOffen(CRM_CONFIG.dataverseUrl)
+         ? "korrekt gesperrt – " + dvText
+         : dvText);
+
+/* Rollenrang: none < viewer < editor < admin. */
+const R = DATA.RANK;
+pruefe("Rollenrang", R.none < R.viewer && R.viewer < R.editor && R.editor < R.admin,
+       Object.entries(R).map(([k, v]) => `${k}=${v}`).join(" · "));
+pruefe("Standardrolle sperrt", CRM_CONFIG.defaultRole === "none",
+       "defaultRole = " + CRM_CONFIG.defaultRole);
+
+/* Kein Token in localStorage (CLAUDE.md §2, Nr. 9). */
+pruefe("Kein Token im localStorage",
+       !Object.keys(localStorage).some(k => k.startsWith("crm_")),
+       Object.keys(localStorage).length + " Einträge im localStorage");
+
+const s = document.createElement("p");
+s.className = fehler ? "err" : "ok";
+s.textContent = fehler ? `${fehler} Prüfung(en) fehlgeschlagen.` : "Alle Prüfungen bestanden.";
+out.parentElement.appendChild(s);
+</script>
+</body>
+</html>

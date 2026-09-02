@@ -1,0 +1,82 @@
+# Session-Log
+
+## 02.09.2026 — Phase 1 und 2: Gerüst, Anmeldung, Selbsttest
+
+**Ausgangslage.** Spezifikation und Analysen lagen fertig vor (`docs/00`–`07`).
+Gebaut war noch nichts.
+
+**Entscheidung: Bauweise nach Hausvorlage statt Vite/MSAL.**
+`CLAUDE.md` §3 legte Vite, npm und `@azure/msal-browser` ^5 fest. Der
+Abgleich mit dem Bestand ergab, dass keine der 15 DIHAG-Apps so gebaut ist:
+
+- Zehn ältere Apps (`zapp`, `compliance`, `tickets`, `bedarfsanfrage`,
+  `e-rechnung`, `richtlinienmanagementsystem`, `dms`, `admin`,
+  `besuchermanagement`, `3d-space`) laden MSAL v2 von
+  `alcdn.msauth.net/browser/2.38.x` — dem letzten Stand, den das CDN je
+  ausliefern wird.
+- Die drei neueren (`rundumdenjob`, `powerbi`, `umfrage1`) ziehen daraus
+  nicht den Schluss „dann npm“, sondern „dann ohne MSAL“: Auth-Code + PKCE
+  von Hand, 197 Zeilen, kein Build.
+
+Randbedingung 2 aus `CLAUDE.md` war damit der Grund für die Hausvorlage, nicht
+der Gegengrund. Mit ihr entfallen auch Randbedingung 3 (`base: '/crm/'`) und
+der Fallstrick hinter Nr. 4: `auth.js` leitet die Umleitungs-URI aus
+`location` ab, `AADSTS50011` ist baulich ausgeschlossen.
+
+Analyse und Begründung: `docs/08-frontend-github.md`. Nach Freigabe wurden
+`CLAUDE.md` §1, §2 (Nr. 2–4), §3, §4, §5, §12 und §13 nachgezogen.
+
+**Gebaut.**
+
+| Datei | Inhalt |
+|---|---|
+| `index.html` | Boot-Schirm, Kein-Zugriff-Schirm, Kopfbereich mit Umgebungsband, Schrittleiste |
+| `css/styles.css` | CI-Token-Satz aus `rundumdenjob`, Grundformen |
+| `js/config.js` | eine Stelle für alles; `istOffen()` für `KLAEREN_`-Werte |
+| `js/auth.js` | PKCE, stiller SSO, **zwei Ressourcen über einen Refresh-Token** |
+| `js/graph.js` | aus `rundumdenjob` übernommen, ergänzt um `Retry-After` und Bibliothekszugriff |
+| `js/dataverse.js` | Grundzugriff, Wiederholungsregeln, `WhoAmI` |
+| `js/data.js` | Benutzerkontext, Rolle aus `AppPermissions`, `roleErklaerung()` |
+| `js/app.js` | Startseite, Selbsttest, Gerüst der sechs Schritte |
+| `tests/test-konsistenz.mjs` | Konfiguration, Ladereihenfolge, Doku |
+| `.github/workflows/pruefung.yml` | `node --check` + Test, kein Build |
+
+**Die eine Stelle, an der die Vorlage nicht reichte.** Die App braucht zwei
+Token — Graph und Dataverse. Der v2-Endpunkt gibt ein Access-Token immer nur
+für eine Ressource aus. Gelöst wie in MSAL: einmal mit den Graph-Scopes
+anmelden, den Refresh-Token behalten und je Ressource einlösen.
+`rundumdenjob` fordert `offline_access` bereits an und verwirft den
+Refresh-Token — hier wird er gespeichert. Behandelt sind Rotation
+(jede Einlösung entwertet den alten Token), die 24-Stunden-Grenze für
+SPA-Refresh-Token und der Rückfall auf interaktive Zustimmung.
+
+**Selbsttest statt Graph Explorer.** Die Startseite prüft Graph-Token,
+`AppPermissions`, Quellbibliothek, Quellordner, Konfigurationssite und
+`WhoAmI`. Die Bibliotheksprüfung erkennt beide Fälle — eigene Bibliothek
+oder Ordner in „Dokumente“ — und nennt die Werte, die dann in `js/config.js`
+gehören. Damit beantwortet der erste Aufruf die offene Frage aus `docs/02`.
+
+**Corporate Design vorgezogen.** `CLAUDE.md` §12 hatte es als Phase 8
+geführt, „erst wenn die Vorlage vorliegt“. Sie lag vor: der `:root`-Block in
+`rundumdenjob/css/styles.css`. Phase 8 ist damit entfallen.
+
+**`hauptAdmins` mit zwei Adressen.** `defaultRole` ist `none`; ohne Eintrag
+in `AppPermissions` für `crm` käme sonst beim ersten Aufruf niemand hinein.
+`administrator@dihag.com` und `fedorov@dihag.com` sind deshalb fest
+hinterlegt. Sobald die Rechteliste gepflegt ist, kann die zweite Adresse
+wieder raus.
+
+**Geprüft.** `node --check` über alle sechs JS-Dateien und das Testskript,
+`tests/test-konsistenz.mjs` grün (28 Prüfungen). Startseite örtlich gerendert.
+
+**Offen, blockierend.**
+
+- `dataverseUrl` der Testumgebung — bis dahin bleibt die Dataverse-Probe
+  gesperrt und meldet das auch so
+- DNS-Eintrag für `crm.dihag.de` und die Umleitungs-URI in der Registrierung
+- Alternativschlüssel an `opportunity` (Befund B2)
+
+**Als Nächstes.** Phase 3: `js/spFiles.js` und `js/excel.js` — Dateiliste aus
+der Bibliothek, Datei über `@microsoft.graph.downloadUrl` laden, mit SheetJS
+öffnen, Blätter und die ersten 20 Zeilen anzeigen. Erste Phase mit echten
+Daten, noch ohne Schreibzugriff.

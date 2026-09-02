@@ -1,0 +1,542 @@
+{
+  "$herkunft": "Abgeleitet aus dem Power-Automate-Export TestumgebungExpImpCRMTimeline. Feldnamen und Filter stammen 1:1 aus definition.json. Stellen mit KLAEREN sind aus dem Flow nicht eindeutig ableitbar und muessen fachlich bestaetigt werden, bevor gebaut wird.",
+  "profileName": "DIHAG CRM-Timeline",
+  "environmentLabel": "TEST",
+  "sourceWorkbook": {
+    "sheets": [
+      {
+        "name": "Anfragen",
+        "$hinweis": "eine Zeile je Verkaufschance. Im Flow auf A1:R300 begrenzt, neu: unbegrenzt."
+      },
+      {
+        "name": "Positionen",
+        "$hinweis": "eine Zeile je Angebotsposition, verknuepft ueber Opp-ID"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "Step": 10,
+      "EntitySet": "accounts",
+      "SourceSheet": "Anfragen",
+      "MappingKey": "ACCOUNT_LOOKUP",
+      "Mode": "LookupOnly",
+      "AlternateKey": "dag_dihag_kdnr",
+      "StopOnError": false,
+      "Active": true,
+      "$hinweis": "Konten werden NICHT angelegt, nur aufgeloest. Unbekannte Kundennummer schliesst NUR DIESE ZEILE aus allen Folgeschritten aus - der Lauf laeuft weiter (Review B3). Vorher haette eine einzige unbekannte Nummer den ganzen Import verhindert.",
+      "OnMissingKey": "Fail",
+      "RowLevelExclusion": true
+    },
+    {
+      "Step": 20,
+      "EntitySet": "contacts",
+      "SourceSheet": "Anfragen",
+      "MappingKey": "CONTACT_STD",
+      "Mode": "Upsert",
+      "AlternateKey": null,
+      "BatchSize": 100,
+      "StopOnError": false,
+      "Active": true,
+      "$hinweis": "KEIN Alternativschluessel: parentcustomerid ist polymorph, und die Schluessel-URL verlangt ohnehin die Konto-GUID - ein Alternativschluessel laesst sich nicht in einen anderen verschachteln (Review A1). Aufloesung in Phase 0, dann gezielt POST oder PATCH ueber die GUID. dummy@dihag.com erzeugt keinen Kontakt.",
+      "OnMissingKey": "Skip",
+      "SkipOnValues": {
+        "Kontaktemail": [
+          "dummy@dihag.com"
+        ]
+      },
+      "ResolveBy": "emailaddress1 + _parentcustomerid_value"
+    },
+    {
+      "Step": 30,
+      "EntitySet": "opportunities",
+      "SourceSheet": "Anfragen",
+      "MappingKey": "OPPORTUNITY_STD",
+      "Mode": "Upsert",
+      "AlternateKey": "KLAEREN_dag_oppid",
+      "BatchSize": 100,
+      "StopOnError": false,
+      "Active": true,
+      "$hinweis": "Upsert ueber Alternativschluessel. SkipIfClosed: geschlossene Chancen (statecode 1/2) sind schreibgeschuetzt, PATCH schlaegt fehl. Sie werden uebersprungen und gemeldet, NICHT automatisch wiedereroeffnet - das waere eine fachliche Entscheidung (Review A3).",
+      "OnMissingKey": "Fail",
+      "SkipIfClosed": true
+    },
+    {
+      "Step": 40,
+      "EntitySet": "opportunityproducts",
+      "SourceSheet": "Positionen",
+      "MappingKey": "OPPPRODUCT_STD",
+      "Mode": "ReplaceByParent",
+      "ParentField": "opportunityid",
+      "BatchSize": 100,
+      "StopOnError": false,
+      "Active": true,
+      "$hinweis": "Erst alle neuen Positionen validieren und aufbauen, dann je Verkaufschance EIN Changeset: alte loeschen, neue schreiben. Behebt B3. ReplaceScope=SourceParentsOnly: Nur Verkaufschancen, die im Blatt Positionen vorkommen, werden angefasst. Eine Anfrage ohne Positionen behaelt ihre bestehenden - sonst wuerde eine unvollstaendige Datei stillschweigend loeschen.",
+      "OnMissingKey": "Fail",
+      "ReplaceScope": "SourceParentsOnly",
+      "SkipIfParentClosed": true
+    },
+    {
+      "Step": 50,
+      "EntitySet": "opportunitysalesprocesses",
+      "SourceSheet": "Anfragen",
+      "MappingKey": "SALESPROCESS_STD",
+      "Mode": "SetStage",
+      "BatchSize": 50,
+      "StopOnError": false,
+      "Active": true,
+      "$hinweis": "Nicht nur anlegen: Dataverse erzeugt Prozessinstanzen meist selbst (Review B6). Der eigentliche Zweck ist activestageid aus den Phasenwerten der Status-Spalte. Phase 0 prueft, ob schon eine Instanz existiert.",
+      "OnMissingKey": "Fail"
+    },
+    {
+      "Step": 60,
+      "EntitySet": "opportunities",
+      "SourceSheet": "Positionen",
+      "Mode": "CloseOpportunity",
+      "MappingKey": "CLOSE_STD",
+      "StopOnError": false,
+      "Active": false,
+      "$hinweis": "Win/Loss sind KEINE Feldzuweisungen. Sie laufen ueber die Aktionen WinOpportunity bzw. LoseOpportunity mit einer opportunityclose-Aktivitaet. statecode direkt zu setzen erzeugt keine Abschlussaktivitaet und bricht Rollups (Review A4). MUSS der letzte Schritt sein: eine geschlossene Chance nimmt keine Positionen mehr an. Inaktiv, bis geklaert ist, ob Abschluesse ueberhaupt importiert werden sollen."
+    }
+  ],
+  "mappings": {
+    "ACCOUNT_LOOKUP": [
+      {
+        "SourceColumn": "Firma",
+        "TargetField": "dag_dihag_kdnr",
+        "TargetType": "String",
+        "IsKey": true,
+        "Required": true,
+        "Transform": "trim",
+        "SortOrder": 10,
+        "$hinweis": "KLAEREN: Flow-Filter lautet 'dag_dihag_kdnr eq @{Firma}' ohne Anfuehrungszeichen, also numerisch. Danebenliegende Spalte 'Firmaname' traegt den Klartext.",
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Firmaname",
+        "TargetField": null,
+        "TargetType": "String",
+        "SortOrder": 20,
+        "$hinweis": "Nur fuer Fehlermeldungen und Vorschau. Wird nicht ins CRM geschrieben."
+      }
+    ],
+    "CONTACT_STD": [
+      {
+        "SourceColumn": "Kontaktemail",
+        "TargetField": "emailaddress1",
+        "TargetType": "String",
+        "IsKey": true,
+        "Required": false,
+        "Transform": "trim|lower",
+        "MaxLength": 100,
+        "SortOrder": 10,
+        "$hinweis": "Schluesselfeld. Leer => Zeile wird in diesem Schritt uebersprungen (OnMissingKey=Skip), nicht abgewiesen. Der Altflow legt bei leerer E-Mail bei JEDEM Lauf einen neuen leeren Kontakt an (B6).",
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Kontaktvorname",
+        "TargetField": "firstname",
+        "TargetType": "String",
+        "Transform": "trim",
+        "MaxLength": 50,
+        "SortOrder": 20,
+        "WritePolicy": "OnlyIfEmpty"
+      },
+      {
+        "SourceColumn": "Kontaktnachname",
+        "TargetField": "lastname",
+        "TargetType": "String",
+        "Required": true,
+        "Transform": "trim",
+        "MaxLength": 50,
+        "SortOrder": 30,
+        "WritePolicy": "OnlyIfEmpty"
+      },
+      {
+        "SourceColumn": "Firma",
+        "TargetField": "parentcustomerid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "accounts",
+        "LookupKeyField": "dag_dihag_kdnr",
+        "Transform": "trim",
+        "SortOrder": 40,
+        "$hinweis": "Teil des zusammengesetzten Schluessels. Behebt B6 und Datenanalyse 1.",
+        "IsKey": true,
+        "Required": true,
+        "WritePolicy": "OnCreateOnly"
+      }
+    ],
+    "OPPORTUNITY_STD": [
+      {
+        "SourceColumn": "Opp-ID",
+        "TargetField": "KLAEREN_dag_oppid",
+        "TargetType": "String",
+        "IsKey": true,
+        "Required": true,
+        "Transform": "trim",
+        "SortOrder": 10
+      },
+      {
+        "SourceColumn": "Thema (Verkaufschancen Name)",
+        "TargetField": "name",
+        "TargetType": "String",
+        "Required": true,
+        "Transform": "trim",
+        "MaxLength": 300,
+        "SortOrder": 20,
+        "WritePolicy": "OnCreateOnly"
+      },
+      {
+        "SourceColumn": "Voaussichtlicher Umsatz",
+        "TargetField": "estimatedvalue",
+        "TargetType": "Money",
+        "Transform": "decimal:de",
+        "SortOrder": 30,
+        "$hinweis": "WritePolicy=Always - das ist der Fachwert aus der Quelle. ACHTUNG: Steht der Umsatzmodus der Chance auf systemberechnet (isrevenuesystemcalculated), ist das Feld schreibgeschuetzt und der Wert wird still ignoriert. Phase 0 liest das Kennzeichen mit, der Prueflauf meldet den Widerspruch (Review A6).",
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Wahrscheinlichkeit",
+        "TargetField": "closeprobability",
+        "TargetType": "Int",
+        "Transform": "digits",
+        "SortOrder": 40,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Voraussichtliches Abschlussdatum",
+        "TargetField": "estimatedclosedate",
+        "TargetType": "DateTime",
+        "Transform": "date:auto",
+        "SortOrder": 45,
+        "$hinweis": "72/72 befuellt, vom Altflow nie gelesen. 8 Termine liegen in der Vergangenheit - Hinweis im Pruefbericht, kein Fehler.",
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Firma",
+        "TargetField": "parentaccountid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "accounts",
+        "LookupKeyField": "dag_dihag_kdnr",
+        "Required": true,
+        "Transform": "trim",
+        "SortOrder": 50,
+        "WritePolicy": "OnCreateOnly"
+      },
+      {
+        "SourceColumn": "Kontaktemail",
+        "TargetField": "parentcontactid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "contacts",
+        "LookupKeyField": "emailaddress1",
+        "Transform": "trim|lower|empty2null",
+        "SortOrder": 60,
+        "WritePolicy": "OnCreateOnly"
+      },
+      {
+        "SourceColumn": null,
+        "TargetField": "transactioncurrencyid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "transactioncurrencies",
+        "DefaultValue": "KLAEREN_ISO_WAEHRUNGSCODE",
+        "SortOrder": 70,
+        "$hinweis": "Spalte \"Waehrung\" ist in der Datei durchgaengig leer. Der Altflow verdrahtet die GUID be7f5393-... fest (B9). Standardwaehrung als ISO-Code in die Laufzeitkonfiguration, nicht in den Code.",
+        "LookupKeyField": "isocurrencycode",
+        "WritePolicy": "OnCreateOnly"
+      },
+      {
+        "SourceColumn": "Technische Prüfung",
+        "TargetField": "KLAEREN",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "cr570_technicalaudit_lookups",
+        "LookupKeyField": "cr570_newcolumn",
+        "Active": false,
+        "SortOrder": 80,
+        "$hinweis": "B7: Der Flow fragt diese Tabelle je Zeile ab, schreibt das Ergebnis in die Variable TechnicalAudit - und liest sie nie. Zielfeld unbekannt. Bis zur Klaerung inaktiv."
+      },
+      {
+        "SourceColumn": "Produktgruppe",
+        "TargetField": "KLAEREN",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "cr570_productline_lookups",
+        "LookupKeyField": "cr570_newcolumn",
+        "Active": false,
+        "SortOrder": 90,
+        "$hinweis": "B7, wie oben."
+      },
+      {
+        "SourceColumn": "Mitarbeiter",
+        "SourceSheet": "Positionen",
+        "SourceLookupBy": "Opp-ID",
+        "TargetField": "ownerid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "systemusers",
+        "LookupKeyField": "internalemailaddress",
+        "OnLookupFail": "WarnAndSkipField",
+        "Transform": "trim|lower",
+        "SortOrder": 75,
+        "$hinweis": "Steht im Blatt Positionen, ist aber je Opp-ID eindeutig (0 Konflikte bei 72 Chancen) - die App uebernimmt ihn aus der ersten zugehoerigen Position. Der Altflow setzt stattdessen den Verbindungsbenutzer (Datenanalyse 5). erik.bier@schmie-guss.de ist eine fremde Domaene und vermutlich kein Systembenutzer: OnLookupFail=WarnAndSkipField, Import laeuft weiter. WritePolicy=OnCreateOnly: Hat ein Vertriebler die Chance im CRM uebernommen, darf der naechste Import sie nicht zurueckholen (Review B2).",
+        "WritePolicy": "OnCreateOnly"
+      }
+    ],
+    "OPPPRODUCT_STD": [
+      {
+        "SourceColumn": "Opp-ID",
+        "TargetField": "opportunityid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "opportunities",
+        "LookupKeyField": "KLAEREN_dag_oppid",
+        "Required": true,
+        "Transform": "trim",
+        "SortOrder": 10,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Vertragspositionsnummer",
+        "TargetField": "lineitemnumber",
+        "TargetType": "Int",
+        "Transform": "digits",
+        "SortOrder": 20,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Länge (mm)",
+        "TargetField": "dag_lengthmm",
+        "TargetType": "Decimal",
+        "Transform": "decimal:de|zero2null",
+        "SortOrder": 30,
+        "$hinweis": "Nur 9 von 206 Zeilen haben Werte !=0. Die 0 bedeutet \"nicht erfasst\" (Datenanalyse 8).",
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Gewicht (kg)",
+        "TargetField": "dag_weightkg",
+        "TargetType": "Decimal",
+        "Transform": "decimal:de|empty2null",
+        "SortOrder": 40,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Material",
+        "TargetField": "dag_material",
+        "TargetType": "String",
+        "Transform": "trim|empty2null",
+        "SortOrder": 50,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Stückzahl",
+        "TargetField": "dag_numberofpieces",
+        "TargetType": "Int",
+        "Transform": "digits|empty2null",
+        "SortOrder": 60,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Einzelpreis",
+        "TargetField": "dag_einzelpreis",
+        "TargetType": "Money",
+        "Transform": "decimal:de|empty2null",
+        "SortOrder": 70,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "MTZ absolut",
+        "TargetField": "new_dag_materialteuerungszuschlagmtzabsolut",
+        "TargetType": "Money",
+        "Transform": "decimal:de|empty2null",
+        "SortOrder": 80,
+        "WritePolicy": "Always"
+      },
+      {
+        "SourceColumn": "Breite (mm)",
+        "TargetField": "KLAEREN_dag_widthmm",
+        "TargetType": "Decimal",
+        "Active": false,
+        "SortOrder": 90,
+        "$hinweis": "Nur 9 von 206 Zeilen haben Werte !=0. Die 0 bedeutet \"nicht erfasst\" (Datenanalyse 8).",
+        "Transform": "decimal:de|zero2null"
+      },
+      {
+        "SourceColumn": "Höhe (mm)",
+        "TargetField": "KLAEREN_dag_heightmm",
+        "TargetType": "Decimal",
+        "Active": false,
+        "SortOrder": 100,
+        "$hinweis": "Nur 9 von 206 Zeilen haben Werte !=0. Die 0 bedeutet \"nicht erfasst\" (Datenanalyse 8).",
+        "Transform": "decimal:de|zero2null"
+      },
+      {
+        "SourceColumn": "Zeichnungsnummer",
+        "TargetField": "KLAEREN",
+        "TargetType": "String",
+        "Active": false,
+        "SortOrder": 110,
+        "$hinweis": "Der Altflow liest \"Zeichennummer\" - die Spalte heisst aber \"Zeichnungsnummer\". Der Ausdruck liefert null, die Nummer geht bei jedem Lauf verloren (Datenanalyse 3). Zielfeld MUSS Text sein: die Werte sind teils numerisch (226223114), teils alphanumerisch (4550A-A2803:002A0, X52620200181)."
+      },
+      {
+        "SourceColumn": "Preisliste",
+        "TargetField": "KLAEREN",
+        "TargetType": "String",
+        "Active": false,
+        "SortOrder": 120,
+        "$hinweis": "B8"
+      },
+      {
+        "SourceColumn": "Status",
+        "TargetField": "KLAEREN",
+        "TargetType": "String",
+        "Active": false,
+        "SortOrder": 130,
+        "$hinweis": "Traegt Vertriebsphasen der Verkaufschance (Win/Loss/Check Feasibility/...), steht aber je Position. Bei 9 von 72 Chancen widersprechen sich die Positionen, Opp 6889 ist gleichzeitig Win und Loss (Datenanalyse 6). Regel offen - bis dahin inaktiv, der Pruefbericht meldet die Konflikte."
+      },
+      {
+        "SourceColumn": "Mitarbeiter",
+        "TargetField": "KLAEREN_ownerid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "systemusers",
+        "LookupKeyField": "internalemailaddress",
+        "Active": false,
+        "SortOrder": 140,
+        "$hinweis": "Der Flow sucht den Systembenutzer ueber die E-Mail und setzt ownerid - aber an einer NEU angelegten Verkaufschance in der verschachtelten Schleife (B1). Gemeint war vermutlich: Besitzer der bestehenden Verkaufschance setzen."
+      },
+      {
+        "SourceColumn": "sonstige Zuschläge",
+        "TargetField": "KLAEREN",
+        "TargetType": "Money",
+        "Transform": "decimal:de|empty2null",
+        "Active": false,
+        "SortOrder": 85,
+        "$hinweis": "206/206 befuellt, vom Altflow nie gelesen. Zielfeld unbekannt (Datenanalyse 4)."
+      }
+    ],
+    "SALESPROCESS_STD": [
+      {
+        "SourceColumn": null,
+        "TargetField": "name",
+        "TargetType": "String",
+        "DefaultValue": "Vertriebsprozess",
+        "SortOrder": 10,
+        "WritePolicy": "OnCreateOnly"
+      },
+      {
+        "SourceColumn": "Opp-ID",
+        "TargetField": "opportunityid",
+        "TargetType": "Lookup",
+        "LookupEntitySet": "opportunities",
+        "LookupKeyField": "KLAEREN_dag_oppid",
+        "Required": true,
+        "Transform": "trim",
+        "SortOrder": 20,
+        "WritePolicy": "Always"
+      }
+    ],
+    "CLOSE_STD": [
+      {
+        "SourceColumn": "Status",
+        "SourceLookupBy": "Opp-ID",
+        "TargetField": "$action",
+        "TargetType": "Action",
+        "ActionMap": {
+          "Win": "WinOpportunity",
+          "Loss": "LoseOpportunity"
+        },
+        "ConflictRule": "AbschlussSchlaegtPhase",
+        "$hinweis": "Status mischt zwei Konzepte: drei Vertriebsphasen und zwei Abschlusszustaende (Review A5). Phasen gehen nach Schritt 50 (activestageid), Win/Loss hierher. Opp 6889 hat Win UND Loss - echter Datenfehler, gehoert in den Pruefbericht, keine Regel."
+      }
+    ]
+  },
+  "valueMappings": {},
+  "validations": {
+    "normalizeHeaders": true,
+    "$normalizeHeaders": "Kopfzeilen trimmen. \"Breite (mm) \" und \"Höhe (mm) \" haben Leerzeichen am Ende (Datenanalyse 2). Der Pruefbericht meldet, welche Kopfzeilen normalisiert wurden.",
+    "warnOnPastDate": [
+      "Voraussichtliches Abschlussdatum"
+    ],
+    "warnOnConflict": {
+      "Status": "Opp-ID"
+    },
+    "warnOnConstant": [
+      "Wahrscheinlichkeit"
+    ],
+    "$warnOnConstant": "Alle 72 Zeilen haben den Wert 1. closeprobability ist ein Prozentwert 0-100, der Import schreibt also ueberall 1 %. Zu klaeren.",
+    "rejectKeyChars": [
+      "/",
+      "<",
+      ">",
+      "*",
+      "%",
+      "&",
+      ":",
+      "\\",
+      "?",
+      "+"
+    ],
+    "$rejectKeyChars": "Diese Zeichen in einem Schluesselwert lassen GET/PATCH/Upsert ueber Alternativschluessel fehlschlagen. Der Prueflauf beanstandet sie vorab. Betrifft vor allem \"+\" in E-Mail-Adressen (Review A2)."
+  },
+  "resolution": {
+    "$zweck": "Phase 0. Laeuft vor JEDEM Schreibzugriff. Stellt fest, was existiert, was geschlossen ist und was sich tatsaechlich aendert. Ohne diese Phase kann der Prueflauf nichts vorhersagen und das Protokoll angelegt/aktualisiert/unveraendert nicht unterscheiden - Dataverse antwortet auf Upsert per PATCH immer mit 204.",
+    "bulkFilter": "Microsoft.Dynamics.CRM.In, in Bloecken wegen URL-Laenge",
+    "queries": [
+      {
+        "entitySet": "accounts",
+        "keyField": "dag_dihag_kdnr",
+        "select": "accountid,dag_dihag_kdnr",
+        "quelle": "Anfragen.Firma",
+        "erwartet": 47
+      },
+      {
+        "entitySet": "systemusers",
+        "keyField": "internalemailaddress",
+        "select": "systemuserid,internalemailaddress,isdisabled",
+        "quelle": "Positionen.Mitarbeiter",
+        "erwartet": 6
+      },
+      {
+        "entitySet": "transactioncurrencies",
+        "keyField": "isocurrencycode",
+        "select": "transactioncurrencyid,isocurrencycode",
+        "erwartet": 1
+      },
+      {
+        "entitySet": "contacts",
+        "keyField": "emailaddress1,_parentcustomerid_value",
+        "select": "contactid,emailaddress1,_parentcustomerid_value",
+        "erwartet": 53,
+        "$hinweis": "Kein Alternativschluessel - polymorpher Lookup, siehe Review A1. Auflaesung per $filter."
+      },
+      {
+        "entitySet": "opportunities",
+        "keyField": "KLAEREN_dag_oppid",
+        "select": "opportunityid,KLAEREN_dag_oppid,statecode,statuscode,name,estimatedvalue,estimatedclosedate,closeprobability,_ownerid_value,_parentcontactid_value,isrevenuesystemcalculated",
+        "erwartet": 72,
+        "$hinweis": "statecode ist Pflicht im select: geschlossene Chancen sind schreibgeschuetzt (Review A3). Die uebrigen Felder braucht der Vergleich fuer den Status unveraendert."
+      },
+      {
+        "entitySet": "opportunityproducts",
+        "keyField": "_opportunityid_value",
+        "select": "opportunityproductid,_opportunityid_value",
+        "$hinweis": "GUIDs fuer den Ersetzungsschritt. Ohne sie kein DELETE."
+      },
+      {
+        "entitySet": "opportunitysalesprocesses",
+        "keyField": "_opportunityid_value",
+        "select": "businessprocessflowinstanceid,_opportunityid_value,activestageid",
+        "$hinweis": "Dataverse legt Prozessinstanzen meist selbst an. Ohne diese Pruefung entstehen Doppel (Review B6)."
+      }
+    ]
+  },
+  "writePolicies": {
+    "$erklaerung": "Steuert, ob ein Feld nur beim Anlegen oder bei jeder Aktualisierung geschrieben wird. Ohne diese Unterscheidung ist der Import kein Abgleich, sondern ein Ueberschreiben der CRM-Pflege (Review B2).",
+    "Always": "bei Anlage und Aktualisierung",
+    "OnCreateOnly": "nur bei Anlage - danach gehoert das Feld dem CRM",
+    "OnlyIfEmpty": "nur schreiben, wenn im CRM leer"
+  },
+  "retryRules": {
+    "429": "sofort wiederholen nach Retry-After - die Anfrage wurde abgewiesen, bevor sie wirkte",
+    "timeout_or_5xx_on_PATCH": "wiederholen - Upsert ist idempotent",
+    "timeout_or_5xx_on_POST": "NICHT blind wiederholen. Erst nachfragen ob der Datensatz existiert. Die Anfrage kann angekommen sein und nur die Antwort verloren gegangen (Review B5).",
+    "400_403_404": "nicht wiederholen - Datenfehler, direkt in den Fehlerbericht"
+  },
+  "$keyValuesNotInBody": "Schluesselwerte gehoeren NUR in die URL, nie zusaetzlich in den Rumpf. Microsoft dokumentiert das ausdruecklich. Felder mit IsKey=true werden beim Aufbau der Nutzlast ausgelassen (Review A1)."
+}

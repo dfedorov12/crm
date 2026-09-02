@@ -1,0 +1,349 @@
+"use strict";
+
+/* Oberfläche – Start, Selbsttest, Gerüst der sechs Pipeline-Schritte.
+
+   Stand: Phase 1 und 2. Anmeldung, Zugriffssteuerung und ein Selbsttest,
+   der die offenen Punkte aus CLAUDE.md §13 beantwortet, sobald jemand die
+   Seite aufruft: Wie heißt die Bibliothek wirklich? Steht die
+   Konfigurationssite? Antwortet Dataverse?
+
+   Die Schritte 3 bis 8 sind angelegt, aber leer. Nichts täuscht hier
+   Funktion vor, die es noch nicht gibt.                                  */
+
+const APP = (() => {
+
+  const C = CRM_CONFIG;
+  const $ = id => document.getElementById(id);
+
+  const esc = s => {
+    const d = document.createElement("div");
+    d.textContent = s ?? "";
+    return d.innerHTML;
+  };
+
+  const initialen = n => {
+    if (!n) return "?";
+    const p = String(n).trim().split(/\s+/);
+    return (p.length > 1 ? p[0][0] + p[p.length - 1][0] : n.slice(0, 2)).toUpperCase();
+  };
+
+  let _toastT = null;
+  function toast(msg, fehler = false) {
+    let t = $("toast");
+    if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.appendChild(t); }
+    t.textContent = msg;
+    t.className = fehler ? "err-t" : "";
+    t.hidden = false;
+    clearTimeout(_toastT);
+    _toastT = setTimeout(() => { t.hidden = true; }, 3600);
+  }
+
+  /* ── Start ─────────────────────────────────────────────────────────── */
+
+  async function boot() {
+    const setTxt = t => { const e = $("bootTxt"); if (e) e.textContent = t; };
+    const fail = m => {
+      $("bootSpin").hidden = true;
+      $("bootTxt").hidden = true;
+      const e = $("bootErr"); e.hidden = false; e.innerHTML = "⚠️ " + esc(m);
+      const b = $("bootBtn"); b.hidden = false;
+      b.onclick = () => AUTH.startLogin("select_account");
+    };
+
+    let r;
+    try { r = await AUTH.signIn(); }
+    catch (e) { return fail(e.message); }
+    if (r === "redirecting") return;
+    if (typeof r === "object" && r.error) return fail(r.error);
+
+    try {
+      setTxt("Benutzerdaten werden geladen …");
+      await DATA.loadUser();
+    } catch (e) {
+      return fail("Anmeldung fehlgeschlagen: " + (e.detail || e.message));
+    }
+
+    if (DATA.ctx.role === "none") return keinZugriff();
+
+    $("boot").hidden = true;
+    $("app").hidden = false;
+    renderKopf();
+    renderSchritte();
+    zeigeSchritt("start");
+    selbsttest();
+  }
+
+  function keinZugriff() {
+    $("boot").hidden = true;
+    $("noAccess").hidden = false;
+    $("naMsg").innerHTML =
+      `Ihr Konto <b>${esc(DATA.ctx.email)}</b> ist für die CRM-Schnittstelle nicht `
+      + "freigeschaltet. Sie können hier eine Freigabe bei der IT anfordern.";
+    $("naWarum").textContent = DATA.roleErklaerung();
+    $("naOut").onclick = AUTH.logout;
+    $("naReq").onclick = freigabeAnfragen;
+  }
+
+  async function freigabeAnfragen() {
+    const btn = $("naReq");
+    btn.disabled = true; btn.textContent = "Wird gesendet …";
+    try {
+      await GRAPH.call("/me/sendMail", {
+        method: "POST",
+        body: JSON.stringify({
+          saveToSentItems: false,
+          message: {
+            subject: "Freigabe-Anfrage: CRM-Schnittstelle – " + DATA.ctx.name,
+            body: {
+              contentType: "HTML",
+              content: `<p>Hallo IT-Team,</p>
+                <p>folgende Person beantragt Zugriff auf die <strong>CRM-Schnittstelle</strong>:</p>
+                <ul><li>Name: <strong>${esc(DATA.ctx.name)}</strong></li>
+                <li>E-Mail: ${esc(DATA.ctx.email)}</li>
+                <li>App-Schlüssel: ${esc(C.appKey)}</li>
+                <li>Datum: ${new Date().toLocaleString("de-DE")}</li></ul>
+                <p>Freigabe über einen Eintrag in <code>${esc(C.permList)}</code>
+                auf ${esc(C.permSite)} erteilen.</p>`
+            },
+            toRecipients: [{ emailAddress: { address: C.itMail } }]
+          }
+        })
+      });
+      $("naSent").hidden = false;
+      btn.hidden = true;
+    } catch (e) {
+      const el = $("naErr");
+      el.hidden = false;
+      el.textContent = "Konnte nicht gesendet werden: " + (e.detail || e.message);
+      btn.disabled = false; btn.textContent = "📧 Freigabe anfragen";
+    }
+  }
+
+  /* ── Kopfbereich ───────────────────────────────────────────────────── */
+
+  function renderKopf() {
+    const c = DATA.ctx;
+    $("uName").textContent = c.name;
+    $("uMeta").textContent = c.email + " · " + c.role;
+    $("uAvatar").textContent = initialen(c.name);
+    $("btnLogout").onclick = AUTH.logout;
+
+    const band = $("umgBand");
+    band.textContent = C.umgebung;
+    band.classList.toggle("prod", String(C.umgebung).toUpperCase() === "PROD");
+    band.title = C.umgebung === "PROD"
+      ? "Produktivsystem – Schreibzugriffe wirken sofort und sind nicht zurücknehmbar."
+      : "Testumgebung";
+  }
+
+  /* ── Schritte ──────────────────────────────────────────────────────── */
+
+  const SCHRITTE = [
+    { id: "start",     nr: "",  titel: "Start",        aktiv: true },
+    { id: "datei",     nr: "3", titel: "Datei wählen", aktiv: false },
+    { id: "zuordnung", nr: "4", titel: "Zuordnung",    aktiv: false },
+    { id: "pruefung",  nr: "5", titel: "Prüflauf",     aktiv: false },
+    { id: "import",    nr: "6", titel: "Import",       aktiv: false },
+    { id: "protokoll", nr: "7", titel: "Protokoll",    aktiv: false }
+  ];
+
+  function renderSchritte() {
+    $("tabBar").innerHTML = SCHRITTE.map(s => `
+      <button data-ziel="${s.id}"${s.aktiv ? "" : " disabled"}
+              title="${s.aktiv ? "" : "Folgt in Phase " + s.nr}">
+        ${s.nr ? `<span class="nr">${s.nr}</span>` : ""}${esc(s.titel)}
+      </button>`).join("");
+    for (const b of $("tabBar").querySelectorAll("button[data-ziel]")) {
+      if (!b.disabled) b.onclick = () => zeigeSchritt(b.dataset.ziel);
+    }
+  }
+
+  function zeigeSchritt(id) {
+    for (const b of $("tabBar").querySelectorAll("button"))
+      b.classList.toggle("active", b.dataset.ziel === id);
+    if (id === "start") renderStart();
+  }
+
+  /* ── Startseite ────────────────────────────────────────────────────── */
+
+  function renderStart() {
+    const c = DATA.ctx;
+    $("main").innerHTML = `
+      <div class="page-head">
+        <h2>CRM-Schnittstelle</h2>
+        <p>Excel-Daten aus SharePoint nach Dynamics 365 importieren – in der
+           richtigen Abhängigkeitsreihenfolge, wiederholbar, mit Prüflauf und
+           Protokoll. Ablösung des Flows <code>TestumgebungExpImpCRMTimeline</code>.</p>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <h4>🔐 Anmeldung</h4>
+          <dl class="kv">
+            <dt>Angemeldet als</dt><dd>${esc(c.name)}</dd>
+            <dt>E-Mail</dt><dd>${esc(c.email)}</dd>
+            <dt>Rolle</dt><dd>${esc(c.role)}</dd>
+            <dt>Umgebung</dt><dd>${esc(C.umgebung)}</dd>
+            <dt>Umleitungs-URI</dt><dd><code>${esc(AUTH.redirectUri)}</code></dd>
+          </dl>
+          <p class="hint" style="margin-top:14px">${esc(DATA.roleErklaerung())}</p>
+          <div class="row">
+            <button class="btn sec sm" id="btnRolle">🔄 Rolle neu einlesen</button>
+            <button class="btn sec sm" id="btnCache">🧹 Metadaten-Cache leeren</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>🩺 Selbsttest</h4>
+          <p class="hint">Beantwortet die offenen Punkte aus <code>CLAUDE.md</code> §13,
+             ohne dass jemand den Graph Explorer öffnen muss.</p>
+          <div id="tests"></div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn sec sm" id="btnTest">Erneut prüfen</button>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="section">Ablauf</h3>
+      <div class="card">
+        <p class="hint">Nach jeder Phase steht etwas Lauffähiges. Schritt 6 –
+           der Prüflauf – ist nicht überspringbar: es gibt keinen Weg von der
+           Zuordnung zum Import, der ihn auslässt.</p>
+        <table class="tbl">
+          <thead><tr><th style="width:70px">Phase</th><th>Ergebnis</th><th style="width:130px">Stand</th></tr></thead>
+          <tbody>
+            ${[
+              ["1", "Gerüst, Corporate Design, Auslieferung", "fertig"],
+              ["2", "Anmeldung, Rolle, Selbsttest", "fertig"],
+              ["3", "Dateien aus SharePoint lesen", "offen"],
+              ["4", "Feldzuordnung aus den Konfigurationslisten", "offen"],
+              ["5", "Auflösungsphase und Prüflauf", "offen"],
+              ["6", "Import mit Stapeln und Drosselung", "offen"],
+              ["7", "Protokoll nach SharePoint", "offen"]
+            ].map(([n, t, s]) => `<tr${s === "offen" ? ' class="off"' : ""}>
+                 <td><b>${n}</b></td><td>${esc(t)}</td>
+                 <td><span class="pill ${s === "fertig" ? "gruen" : "grau"}">${esc(s)}</span></td>
+               </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+
+    $("btnTest").onclick = selbsttest;
+    $("btnCache").onclick = () => { GRAPH.clearCache(); toast("Cache geleert."); selbsttest(); };
+    $("btnRolle").onclick = async () => {
+      const r = await DATA.reloadRole();
+      renderKopf();
+      renderStart();
+      toast(r.geaendert ? `Rolle: ${r.alt} → ${r.neu}` : `Rolle unverändert (${r.neu}).`);
+    };
+  }
+
+  /* ── Selbsttest ────────────────────────────────────────────────────── */
+
+  /** Eine Prüfung: { titel, lauf } – lauf() liefert { ok, text } oder wirft. */
+  function pruefungen() {
+    return [
+      {
+        titel: "Microsoft Graph",
+        lauf: async () => {
+          const t = AUTH.tokenInfo("graph");
+          if (!t) return { ok: false, text: "Kein Graph-Token im Speicher." };
+          return { ok: true, text: `Token gültig bis ${t.exp?.toLocaleTimeString("de-DE") || "?"} `
+            + `· Scopes: ${t.scopes.join(", ") || "keine"}` };
+        }
+      },
+      {
+        titel: `Rechteliste ${C.permList}`,
+        lauf: async () => {
+          const rows = await GRAPH.listItems(C.permSite, C.permList, ["UserEmail", "App", "Role"]);
+          if (!rows) return { ok: false, text: `Auf ${C.permSite} nicht gefunden oder nicht lesbar.` };
+          const meine = rows.filter(r => (r.App === C.appKey || r.App === "*"));
+          return { ok: true, text: `${rows.length} Einträge, davon ${meine.length} für „${C.appKey}“ oder „*“.` };
+        }
+      },
+      {
+        titel: `Quellbibliothek „${C.quellDrive}“`,
+        lauf: async () => {
+          const id = await GRAPH.driveId(C.quellSite, C.quellDrive);
+          if (id) return { ok: true, text: "Eigene Dokumentbibliothek – Konfiguration stimmt." };
+          // Zweiter Fall: „Austausch“ ist ein Ordner in „Dokumente“.
+          const alle = await GRAPH.drives(C.quellSite);
+          const namen = alle.map(d => d.name).join(", ");
+          for (const d of alle) {
+            const kinder = await GRAPH.ordnerInhalt(d.id, "");
+            if (kinder.some(k => k.folder && k.name.toLowerCase() === C.quellDrive.toLowerCase()))
+              return { ok: false, text: `„${C.quellDrive}“ ist ein ORDNER in der Bibliothek `
+                + `„${d.name}“, keine eigene Bibliothek. In js/config.js entsprechend `
+                + `anpassen: quellDrive = "${d.name}", quellOrdner = "/${C.quellDrive}${C.quellOrdner}".` };
+          }
+          return { ok: false, text: `Nicht gefunden. Vorhandene Bibliotheken: ${namen || "keine"}.` };
+        }
+      },
+      {
+        titel: `Quellordner ${C.quellOrdner}`,
+        lauf: async () => {
+          const id = await GRAPH.driveId(C.quellSite, C.quellDrive);
+          if (!id) return { ok: false, text: "Übersprungen – Bibliothek nicht aufgelöst." };
+          const kinder = await GRAPH.ordnerInhalt(id, C.quellOrdner);
+          const dateien = kinder.filter(k => k.file);
+          // Graph liefert die Kinder nicht nach Datum sortiert. Wer „neueste“
+          // schreibt, muss auch danach sortieren.
+          const xlsx = dateien.filter(k => /\.xlsx?$/i.test(k.name))
+            .sort((a, b) => String(b.lastModifiedDateTime || "")
+              .localeCompare(String(a.lastModifiedDateTime || "")));
+          return { ok: true, text: `${dateien.length} Dateien, davon ${xlsx.length} Excel-Mappen.`
+            + (xlsx[0] ? ` Zuletzt geändert: ${xlsx[0].name}` : "") };
+        }
+      },
+      {
+        titel: "Konfigurationssite CRM-Integration",
+        lauf: async () => {
+          try { await GRAPH.siteId(C.konfigSite); }
+          catch { return { ok: false, text: "Existiert noch nicht – anzulegen nach docs/02, Schritt 0." }; }
+          const fehlt = [];
+          for (const name of Object.values(C.listen))
+            if (!await GRAPH.listId(C.konfigSite, name)) fehlt.push(name);
+          return fehlt.length
+            ? { ok: false, text: `Site vorhanden, es fehlen: ${fehlt.join(", ")}.` }
+            : { ok: true, text: "Site und alle fünf Listen vorhanden." };
+        }
+      },
+      {
+        titel: "Dataverse (WhoAmI)",
+        lauf: async () => {
+          if (istOffen(C.dataverseUrl))
+            return { ok: false, text: "dataverseUrl in js/config.js noch nicht gesetzt "
+              + "– die URL der Testumgebung fehlt (CLAUDE.md §13)." };
+          const w = await DV.whoAmI();
+          return { ok: true, text: `UserId ${w.UserId} · Organisation ${w.OrganizationId}` };
+        }
+      }
+    ];
+  }
+
+  async function selbsttest() {
+    const liste = pruefungen();
+    const el = $("tests");
+    el.innerHTML = liste.map((p, i) =>
+      `<div class="check" id="chk${i}"><span class="st">⏳</span>
+         <div><b>${esc(p.titel)}</b><small>läuft …</small></div></div>`).join("");
+
+    for (let i = 0; i < liste.length; i++) {
+      const ziel = $("chk" + i);
+      let ok = false, text = "";
+      try {
+        const r = await liste[i].lauf();
+        ok = r.ok; text = r.text;
+      } catch (e) {
+        ok = false; text = e.detail || e.message;
+      }
+      ziel.className = "check " + (ok ? "gut" : "schlecht");
+      ziel.querySelector(".st").textContent = ok ? "✓" : "!";
+      ziel.querySelector("small").textContent = text;
+    }
+  }
+
+  return { boot, toast };
+})();
+
+document.addEventListener("DOMContentLoaded", APP.boot);
