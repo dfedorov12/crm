@@ -8,6 +8,13 @@ Dateistruktur.
 über `Opp-ID`. Keine Waisen — jede Anfrage hat Positionen, jede Position hat
 ihre Anfrage.
 
+> **Personenbezogene Daten sind pseudonymisiert.** Dieses Repository ist
+> öffentlich. Namen und Adressen realer Personen — Mitarbeitende wie
+> Ansprechpartner bei Kunden — stehen deshalb als Platzhalter
+> (`mitarbeiter-a@dihag.com`, `<person>@<fremde-domaene>.de`). Zahlen,
+> Verteilungen und alle fachlichen Schlüsse sind unverändert. Die
+> Originaldatei liegt in SharePoint, nicht hier.
+
 ---
 
 ## 1. Der kritische Befund: `dummy@dihag.com`
@@ -29,7 +36,7 @@ Dummy-Kontakt **umgehängt**. Nach dem Lauf gehört er der Firma, die zufällig
 zuletzt dran war. Bei jedem weiteren Lauf einer anderen Firma.
 
 Ein zweiter, harmloser Fall bestätigt das Muster:
-`janine.beckers@beinbauer-group.de` erscheint bei zwei Firmennummern — eine
+`<person>@<unternehmensgruppe>.de` erscheint bei zwei Firmennummern — eine
 echte Person in einer Unternehmensgruppe mit mehreren Gesellschaften.
 
 **Konsequenz:** Die E-Mail allein ist kein Schlüssel. Der Schlüssel ist
@@ -134,12 +141,12 @@ Verteilung:
 
 | Mitarbeiter | Positionen |
 |---|---|
-| mitto@dihag.com | 111 |
-| kluge@dihag.com | 56 |
-| kirsch@dihag.com | 19 |
-| tran@dihag.com | 14 |
-| kappelt@dihag.com | 3 |
-| **erik.bier@schmie-guss.de** | 3 |
+| mitarbeiter-a@dihag.com | 111 |
+| mitarbeiter-b@dihag.com | 56 |
+| mitarbeiter-c@dihag.com | 19 |
+| mitarbeiter-d@dihag.com | 14 |
+| mitarbeiter-e@dihag.com | 3 |
+| **<person>@<fremde-domaene>.de** | 3 |
 
 Der letzte ist eine **fremde Domäne** und vermutlich kein Systembenutzer im
 Mandanten. Dafür braucht es eine Regel: Besitzer nicht auflösbar ⇒ Warnung

@@ -485,7 +485,7 @@ Altflows.
 Drei Fälle aus der Datenanalyse, die protokolliert werden, den Import aber
 nicht aufhalten:
 
-- Besitzer nicht auflösbar (`erik.bier@schmie-guss.de`) ⇒ Verkaufschance
+- Besitzer nicht auflösbar (`<person>@<fremde-domaene>.de`) ⇒ Verkaufschance
   behält den importierenden Benutzer
 - Sammeladresse `dummy@dihag.com` ⇒ kein Kontakt, keine Verknüpfung
 - Abschlussdatum in der Vergangenheit ⇒ Hinweis
