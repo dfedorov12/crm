@@ -79,6 +79,50 @@ konkrete Chance statt ein `Create` in einer Schleife.
 **Vor der Migration klären:** Stehen im Testsystem Verkaufschancen, die
 niemand angelegt hat? Das wäre die Bestätigung.
 
+### B1 — bestätigt am 02.09.2026
+
+Gemessen in der Testumgebung. Von 1.734 Verkaufschancen mit `#`-Namen
+verteilen sich 115 Datensätze auf nur 39 Opp-IDs:
+
+```
+verschiedene Opp-IDs:             1.657
+Opp-IDs mit mehreren Chancen:        39   (37 davon mit genau 3)
+überzählige Datensätze:              76
+```
+
+Die 76 Überzähligen sind kein Zufallsbefund:
+
+| Merkmal | Überzählige | Originale |
+|---|---|---|
+| angelegt am | **alle 76 am 04.06.2026** | verteilt über zwei Jahre |
+| ohne Konto (`parentaccountid`) | **76 von 76** | 3 von 39 |
+| ohne `new_dagextopid` | 76 von 76 | 0 von 39 |
+| ohne Umsatzwert | 58 von 76 | 14 von 39 |
+| aktiv | 76 von 76 | — |
+
+**Das passt exakt auf die verschachtelte Schleife.** `Auf_alle_anwenden_4`
+setzt beim Anlegen nur `name`, die fest verdrahtete Währung und `ownerid` —
+kein `parentaccountid`. Genau deshalb hat keiner der 76 ein Konto, während
+die Originale eines haben.
+
+Und das Datum: **04.06.2026** ist der `clientLastModifiedTime` des Flows aus
+dem Export. Der Flow wurde an diesem Tag geändert, lief einmal, und erzeugte
+je betroffener Anfrage zwei zusätzliche Verkaufschancen.
+
+**Folgen, die über die Aufräumarbeit hinausgehen:**
+
+1. **Der Alternativschlüssel auf `new_dagextopid` lässt sich erst danach
+   anlegen.** Ein Schlüssel verlangt Eindeutigkeit; bei 39 Opp-IDs mit
+   mehreren Chancen scheitert er.
+2. **Die Nachpflege der 213 leeren `new_dagextopid` darf nicht blind
+   laufen.** 50 davon würden einen bereits vergebenen Wert doppeln, 39 Werte
+   kämen unter den Kandidaten selbst mehrfach vor.
+3. **Die Testumgebung ist als Vergleichsgrundlage verfälscht**, solange die
+   76 drinstehen.
+
+Reihenfolge daher: erst die 76 entfernen, dann die verbleibenden ~137
+nachpflegen, dann den Schlüssel anlegen.
+
 ### B2 — Verkaufschancen werden über einen Namenspräfix gesucht
 
 ```

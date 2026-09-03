@@ -85,7 +85,7 @@
       "BatchSize": 50,
       "StopOnError": false,
       "Active": true,
-      "$hinweis": "Nicht nur anlegen: Dataverse erzeugt Prozessinstanzen meist selbst (Review B6). Der eigentliche Zweck ist activestageid aus den Phasenwerten der Status-Spalte. Phase 0 prueft, ob schon eine Instanz existiert.",
+      "$hinweis": "Nicht nur anlegen: Dataverse erzeugt Prozessinstanzen meist selbst (Review B6). Der eigentliche Zweck ist activestageid aus den Phasenwerten der Status-Spalte. Phase 0 prueft, ob schon eine Instanz existiert. HINWEIS: Solange die Status-Spalte nicht zugeordnet ist, hat dieser Schritt keine Phase zu setzen und stellt nur sicher, dass eine Prozessinstanz existiert.",
       "OnMissingKey": "Fail"
     },
     {
@@ -96,7 +96,7 @@
       "MappingKey": "CLOSE_STD",
       "StopOnError": false,
       "Active": false,
-      "$hinweis": "Win/Loss sind KEINE Feldzuweisungen. Sie laufen ueber die Aktionen WinOpportunity bzw. LoseOpportunity mit einer opportunityclose-Aktivitaet. statecode direkt zu setzen erzeugt keine Abschlussaktivitaet und bricht Rollups (Review A4). MUSS der letzte Schritt sein: eine geschlossene Chance nimmt keine Positionen mehr an. Inaktiv, bis geklaert ist, ob Abschluesse ueberhaupt importiert werden sollen."
+      "$hinweis": "ENTSCHIEDEN am 02.09.2026: Abschluesse werden vorerst NICHT importiert. Win/Loss laufen im CRM, nicht ueber die Schnittstelle. Der Schritt bleibt bestehen, damit die Mechanik dokumentiert ist - Win/Loss sind Aktionen (WinOpportunity/LoseOpportunity mit opportunityclose), keine Feldzuweisungen (Review A4). Zum Scharfschalten Active auf true setzen."
     }
   ],
   "mappings": {
@@ -384,7 +384,7 @@
         "TargetType": "String",
         "Active": false,
         "SortOrder": 120,
-        "$hinweis": "Gehoert an die VERKAUFSCHANCE (opportunity.pricelevelid), nicht an die Position - Review A7. Der Wert in der Datei lautet „Default Price List fuer Verkaufschancenprodukte“; eine Preisliste dieses Namens existiert in der Testumgebung NICHT (gepruefte Treffer auf „Default“: Polish Zloty, Magyar Forint, Sales Professional Business). Der Text sieht nach einer Oberflaechen-Beschriftung aus, nicht nach einem Datensatznamen. Fachlich zu klaeren, welche Preisliste gemeint ist."
+        "$hinweis": "ENTSCHIEDEN am 02.09.2026: bleibt aussen vor. Review A7 vermutete, dass Positionen ohne Preisliste am Elterndatensatz scheitern - in dieser Umgebung stimmt das NICHT: von 60 geprueften Positionen haengen 59 an Verkaufschancen ohne pricelevelid. Es sind Freitextpositionen, die keine Preisliste brauchen. Eine Preisliste des Namens aus der Datei existiert ohnehin nicht."
       },
       {
         "SourceColumn": "Status",
@@ -392,7 +392,7 @@
         "TargetType": "String",
         "Active": false,
         "SortOrder": 130,
-        "$hinweis": "Traegt Vertriebsphasen der Verkaufschance (Win/Loss/Check Feasibility/...), steht aber je Position. Bei 9 von 72 Chancen widersprechen sich die Positionen, Opp 6889 ist gleichzeitig Win und Loss (Datenanalyse 6). Regel offen - bis dahin inaktiv, der Pruefbericht meldet die Konflikte."
+        "$hinweis": "ENTSCHIEDEN am 02.09.2026: bleibt inaktiv. Die Spalte mischt zwei Konzepte (Review A5) - drei Vertriebsphasen und zwei Abschlusszustaende. Die Abschluesse werden vorerst nicht importiert (Schritt 60 inaktiv); fuer die Phasen waere Schritt 50 zustaendig. Der Pruefbericht meldet die Konflikte weiterhin."
       },
       {
         "SourceColumn": "Mitarbeiter",

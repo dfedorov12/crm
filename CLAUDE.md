@@ -650,10 +650,11 @@ scharf geschaltet werden.
 - [x] ~~ISO-Währungscode statt GUID~~ (B9) — die GUID des Altflows ist **EUR**
 - [x] ~~Was `Mitarbeiter` setzen soll~~ (B1) — `ownerid` an der Verkaufschance,
       `OnCreateOnly`, aktiv im Profil
-- [ ] **Preisliste** (A7) — eine Preisliste des Namens aus der Datei existiert
-      in der Testumgebung nicht. Welche ist gemeint?
-- [ ] **Status** (A5) — Phasen gehen nach Schritt 50, `Win`/`Loss` nach
-      Schritt 60. Sollen Abschlüsse überhaupt importiert werden?
+- [x] ~~Preisliste~~ (A7) — bleibt außen vor. Die Vermutung, dass Positionen
+      ohne `pricelevelid` scheitern, gilt hier nicht: 59 von 60 geprüften
+      Positionen hängen an Chancen ohne Preisliste.
+- [x] ~~Status / Win-Loss~~ (A5) — Abschlüsse werden vorerst **nicht**
+      importiert, Schritt 60 bleibt inaktiv. Win/Loss laufen im CRM.
 
 **Nicht blockierend:**
 
@@ -665,10 +666,15 @@ scharf geschaltet werden.
 
 **Zu prüfen, unabhängig vom Neubau:**
 
-- [ ] Befund B1 — stehen in der Testumgebung Verkaufschancen, die niemand
-      angelegt hat? Die verschachtelte Schleife erzeugt sie im Kreuzprodukt.
-      Weil die Testumgebung die Abnahmegrundlage ist, verfälscht das auch
-      jeden Vergleich zwischen Altflow und neuer App.
+- [x] ~~Befund B1 — stehen Verkaufschancen da, die niemand angelegt hat?~~
+      **Ja, 76 Stück.** Alle am 04.06.2026 angelegt, alle ohne Konto — genau
+      das Muster der verschachtelten Schleife. 04.06.2026 ist das
+      Änderungsdatum des Flows. Messung in `docs/05`.
+- [ ] **Die 76 überzähligen Verkaufschancen entfernen.** Sie blockieren den
+      Alternativschlüssel, verfälschen die Nachpflege der Opp-IDs und jeden
+      Vergleich zwischen Altflow und neuer App. Reihenfolge: erst löschen,
+      dann die ~137 verbleibenden `new_dagextopid` nachpflegen, dann den
+      Schlüssel anlegen.
 - [ ] Läuft der Altflow während der Entwicklung weiter? Wenn ja, importieren
       zwei Systeme in dieselbe Umgebung. Für den Vergleichslauf muss der Flow
       kurzzeitig abgeschaltet werden, sonst ist nicht zuzuordnen, welche
