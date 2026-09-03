@@ -171,6 +171,10 @@ const APP = (() => {
    *  bewusst nur im Arbeitsspeicher – die Datei bleibt in SharePoint. */
   let _datei = null;
   let _mappe = null;
+  let _dateien = [];      // vollständige Liste, einmal geladen
+  let _seite = 0;         // nullbasiert
+
+  const PRO_SEITE = 10;
 
   const datum = s => s ? new Date(s).toLocaleString("de-DE",
     { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
@@ -196,35 +200,75 @@ const APP = (() => {
       <div id="vorschau"></div>`;
 
     try {
-      const dateien = await SPFILES.liste();
-      if (!dateien.length) {
-        $("dateiListe").innerHTML = '<p class="hint">Keine Excel-Mappen im Ordner gefunden.</p>';
-        return;
-      }
-      $("dateiListe").innerHTML = `
-        <div class="tbl-wrap"><table class="tbl">
-          <thead><tr>
-            <th>Datei</th><th>Geändert</th><th>Von</th><th>Größe</th>
-            <th>Status</th><th></th>
-          </tr></thead>
-          <tbody>${dateien.map((d, i) => `
-            <tr>
-              <td><b>${esc(d.name)}</b></td>
-              <td>${esc(datum(d.geaendert))}</td>
-              <td>${esc(d.geaendertVon)}</td>
-              <td>${esc(d.groesse)}</td>
-              <td><span class="pill ${d.status === "Importiert" ? "gruen" : "grau"}">${esc(d.status)}</span></td>
-              <td class="actions"><button class="btn sm" data-i="${i}">Öffnen</button></td>
-            </tr>`).join("")}
-          </tbody>
-        </table></div>`;
-
-      for (const b of $("dateiListe").querySelectorAll("button[data-i]"))
-        b.onclick = () => oeffnen(dateien[+b.dataset.i], b);
-
+      _dateien = await SPFILES.liste();
+      _seite = 0;
+      renderDateiListe();
     } catch (e) {
       $("dateiListe").innerHTML = `<p class="err">${esc(e.detail || e.message)}</p>`;
     }
+  }
+
+  /** Tabelle für die aktuelle Seite. Die Liste wird EINMAL geladen und dann
+   *  nur noch geblättert – der Ordner hat ein paar Dutzend Mappen, das lohnt
+   *  keinen zweiten Graph-Aufruf je Seitenwechsel. */
+  function renderDateiListe() {
+    if (!_dateien.length) {
+      $("dateiListe").innerHTML = '<p class="hint">Keine Excel-Mappen im Ordner gefunden.</p>';
+      return;
+    }
+
+    const seiten = Math.ceil(_dateien.length / PRO_SEITE);
+    _seite = Math.min(Math.max(_seite, 0), seiten - 1);
+    const von = _seite * PRO_SEITE;
+    const teil = _dateien.slice(von, von + PRO_SEITE);
+
+    $("dateiListe").innerHTML = `
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr>
+          <th>Datei</th><th>Geändert</th><th>Von</th><th>Größe</th>
+          <th>Status</th><th></th>
+        </tr></thead>
+        <tbody>${teil.map((d, i) => `
+          <tr${_datei && _datei.id === d.id ? ' class="gewaehlt"' : ""}>
+            <td><b>${esc(d.name)}</b></td>
+            <td>${esc(datum(d.geaendert))}</td>
+            <td>${esc(d.geaendertVon)}</td>
+            <td>${esc(d.groesse)}</td>
+            <td><span class="pill ${d.status === "Importiert" ? "gruen" : "grau"}">${esc(d.status)}</span></td>
+            <td class="actions"><button class="btn sm" data-i="${von + i}">Öffnen</button></td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>
+      ${seiten > 1 ? blaetterung(von, teil.length, seiten) : ""}`;
+
+    for (const b of $("dateiListe").querySelectorAll("button[data-i]"))
+      b.onclick = () => oeffnen(_dateien[+b.dataset.i], b);
+
+    for (const b of $("dateiListe").querySelectorAll("button[data-s]")) {
+      b.onclick = () => { _seite = +b.dataset.s; renderDateiListe(); };
+    }
+  }
+
+  function blaetterung(von, anzahl, seiten) {
+    // Bei vielen Seiten nicht alle Knöpfe zeigen, sondern ein Fenster um die
+    // aktuelle – sonst bricht die Zeile bei 40 Mappen um.
+    const fenster = [];
+    const rand = 2;
+    for (let s = 0; s < seiten; s++) {
+      if (s === 0 || s === seiten - 1 || Math.abs(s - _seite) <= rand) fenster.push(s);
+      else if (fenster[fenster.length - 1] !== "…") fenster.push("…");
+    }
+
+    return `
+      <div class="blaettern">
+        <span class="zaehler">${von + 1}–${von + anzahl} von ${_dateien.length}</span>
+        <button class="btn sec sm" data-s="${_seite - 1}"${_seite === 0 ? " disabled" : ""}>‹</button>
+        ${fenster.map(s => s === "…"
+          ? '<span class="luecke">…</span>'
+          : `<button class="btn sec sm${s === _seite ? " aktiv" : ""}" data-s="${s}">${s + 1}</button>`
+        ).join("")}
+        <button class="btn sec sm" data-s="${_seite + 1}"${_seite === seiten - 1 ? " disabled" : ""}>›</button>
+      </div>`;
   }
 
   async function oeffnen(d, btn) {
@@ -235,6 +279,7 @@ const APP = (() => {
       const buf = await SPFILES.laden(d);
       _datei = d;
       _mappe = await EXCEL.lesen(buf);
+      renderDateiListe();   // markiert die gewählte Zeile
       renderVorschau();
     } catch (e) {
       ziel.innerHTML = `<div class="card"><p class="err">${esc(e.detail || e.message)}</p></div>`;
