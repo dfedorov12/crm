@@ -110,7 +110,7 @@ SheetJS ist die einzige.
 
 ## 4. Verzeichnisstruktur
 
-Flach, wie in jeder anderen DIHAG-App. `✓` = vorhanden (Phase 1 und 2).
+Flach, wie in jeder anderen DIHAG-App. `✓` = vorhanden (Phase 1 bis 3).
 
 ```
 crm/
@@ -129,9 +129,9 @@ crm/
 │  ├─ dataverse.js          ✓ Grundzugriff + WhoAmI; Batch folgt Phase 5/6
 │  ├─ data.js               ✓ Benutzerkontext und Rolle
 │  ├─ app.js                ✓ Oberfläche, Selbsttest, Schrittgerüst
-│  ├─ spFiles.js              Phase 3 – Bibliothek listen, Datei laden, Status setzen
+│  ├─ spFiles.js            ✓ Bibliothek listen, Datei laden, Status setzen
 │  ├─ spListen.js             Phase 4 – Konfigurationslisten, Protokoll
-│  ├─ excel.js                Phase 3 – SheetJS, Kopfzeilen normalisieren
+│  ├─ excel.js              ✓ SheetJS, Kopfzeilen normalisieren
 │  ├─ mapping.js              Phase 4 – Zeile + Mapping → Nutzlast
 │  ├─ transforms.js           Phase 4 – trim, decimal:de, date, empty2null …
 │  ├─ pruefung.js             Phase 5 – Validierung und Prüfbericht
@@ -602,14 +602,19 @@ scharf geschaltet werden.
 
 - [x] ~~`dataverseUrl`~~ — `https://dihag-test.crm4.dynamics.com`, eingetragen
       am 02.09.2026. Die Produktiv-URL wird erst beim Produktivgang gebraucht.
-- [ ] **Alternativschlüssel an `opportunity`** für die Opp-ID. Ohne den bleibt
-      es beim `startswith`-Präfixvergleich, siehe Befund B2. Falls es das Feld
-      schon gibt: logischer Name. Falls nicht: anlegen.
-- [ ] Ist `dag_dihag_kdnr` in `accounts` eindeutig? Voraussetzung für den
-      Alternativschlüssel.
-- [ ] Führt die Spalte `Firma` die **Kundennummer** oder den Namen? Der
-      Flow-Filter steht ohne Anführungszeichen, das deutet auf eine Zahl;
-      daneben existiert `Firmaname`.
+- [ ] **Alternativschlüssel an `opportunity`** anlegen — das Feld ist
+      gefunden: **`new_dagextopid`** (Integer), passt bei 200 von 200
+      geprüften Chancen exakt zum `#NNNN` im Namen. Vorher aber
+      **213 Chancen nachpflegen**, die einen `#`-Namen tragen und das Feld
+      noch nicht gesetzt haben (seit 29.05.2026 wird es nicht mehr gefüllt).
+      Sonst legt der Import sie neu an. Details in `docs/03`.
+- [ ] **`dag_dihag_kdnr` ist NICHT eindeutig** — 15 doppelte Nummern bei
+      2.382 Konten, davon 7 mit zwei *aktiven* Konten (teils verschiedene
+      Firmen). Bis das bereinigt ist, lässt sich kein Alternativschlüssel
+      anlegen; Schritt 10 läuft solange über `$filter` und muss
+      Mehrfachtreffer melden. Liste in `docs/03`.
+- [x] ~~Führt die Spalte `Firma` die Kundennummer oder den Namen?~~
+      Die **Nummer** — `dag_dihag_kdnr` ist ein Integer.
 - [x] ~~Heißt die Bibliothek unter `/sites/IT` tatsächlich **Austausch**?~~
       Ja — eigene Dokumentbibliothek, `Projekt CRM-Timeline` ist der Ordner
       darin, in den Timeline die Mappen legt. Bestätigt am 02.09.2026.
@@ -638,11 +643,17 @@ scharf geschaltet werden.
 
 **Blockierend für einzelne Felder (Schritt bleibt inaktiv):**
 
-- [ ] Zielfelder für **Technische Prüfung** und **Produktgruppe** (Befund B7 —
-      der Flow fragt beide Lookup-Tabellen ab und verwirft das Ergebnis)
-- [ ] Zielfelder für **Breite, Höhe, Zeichennummer, Preisliste, Status** (B8)
-- [ ] ISO-Währungscode statt der fest verdrahteten GUID (B9)
-- [ ] Was `Mitarbeiter` setzen soll — `ownerid` an der Verkaufschance? (B1)
+- [x] ~~Technische Prüfung / Produktgruppe~~ (B7) — `cr570_technicalaudit_lookup`
+      und `cr570_productlinie_lookup`, beide aktiv im Profil
+- [x] ~~Breite, Höhe, Zeichnungsnummer~~ (B8) — `dag_widemm`, `dag_heightmm`,
+      `new_zeichnungsid`, alle drei **Textfelder**
+- [x] ~~ISO-Währungscode statt GUID~~ (B9) — die GUID des Altflows ist **EUR**
+- [x] ~~Was `Mitarbeiter` setzen soll~~ (B1) — `ownerid` an der Verkaufschance,
+      `OnCreateOnly`, aktiv im Profil
+- [ ] **Preisliste** (A7) — eine Preisliste des Namens aus der Datei existiert
+      in der Testumgebung nicht. Welche ist gemeint?
+- [ ] **Status** (A5) — Phasen gehen nach Schritt 50, `Win`/`Loss` nach
+      Schritt 60. Sollen Abschlüsse überhaupt importiert werden?
 
 **Nicht blockierend:**
 

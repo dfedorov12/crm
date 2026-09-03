@@ -53,11 +53,11 @@
       "SourceSheet": "Anfragen",
       "MappingKey": "OPPORTUNITY_STD",
       "Mode": "Upsert",
-      "AlternateKey": "KLAEREN_dag_oppid",
+      "AlternateKey": "new_dagextopid",
       "BatchSize": 100,
       "StopOnError": false,
       "Active": true,
-      "$hinweis": "Upsert ueber Alternativschluessel. SkipIfClosed: geschlossene Chancen (statecode 1/2) sind schreibgeschuetzt, PATCH schlaegt fehl. Sie werden uebersprungen und gemeldet, NICHT automatisch wiedereroeffnet - das waere eine fachliche Entscheidung (Review A3).",
+      "$hinweis": "Upsert ueber Alternativschluessel. SkipIfClosed: geschlossene Chancen (statecode 1/2) sind schreibgeschuetzt, PATCH schlaegt fehl. Sie werden uebersprungen und gemeldet, NICHT automatisch wiedereroeffnet - das waere eine fachliche Entscheidung (Review A3). Schluesselfeld am 02.09.2026 in Dataverse gefunden: new_dagextopid (Integer). Bei 200 von 200 geprueften Chancen stimmt es exakt mit dem #NNNN-Praefix im Namen ueberein. ACHTUNG: 213 Chancen mit #-Namen haben es noch nicht - vor dem ersten Lauf nachpflegen, sonst legt der Import sie neu an.",
       "OnMissingKey": "Fail",
       "SkipIfClosed": true
     },
@@ -104,12 +104,12 @@
       {
         "SourceColumn": "Firma",
         "TargetField": "dag_dihag_kdnr",
-        "TargetType": "String",
+        "TargetType": "Int",
         "IsKey": true,
         "Required": true,
-        "Transform": "trim",
+        "Transform": "digits",
         "SortOrder": 10,
-        "$hinweis": "KLAEREN: Flow-Filter lautet 'dag_dihag_kdnr eq @{Firma}' ohne Anfuehrungszeichen, also numerisch. Danebenliegende Spalte 'Firmaname' traegt den Klartext.",
+        "$hinweis": "Geklaert: dag_dihag_kdnr ist in Dataverse ein INTEGER. Die Spalte „Firma“ fuehrt also die Kundennummer, nicht den Namen - daneben steht „Firmaname“ mit dem Klartext. Der Filter des Altflows ohne Anfuehrungszeichen war der richtige Hinweis.",
         "WritePolicy": "Always"
       },
       {
@@ -169,12 +169,13 @@
     "OPPORTUNITY_STD": [
       {
         "SourceColumn": "Opp-ID",
-        "TargetField": "KLAEREN_dag_oppid",
-        "TargetType": "String",
+        "TargetField": "new_dagextopid",
+        "TargetType": "Int",
         "IsKey": true,
         "Required": true,
-        "Transform": "trim",
-        "SortOrder": 10
+        "Transform": "digits",
+        "SortOrder": 10,
+        "$hinweis": "Alternativschluessel. Integer, nicht Text - der Wert aus der Datei muss als Zahl geschrieben werden."
       },
       {
         "SourceColumn": "Thema (Verkaufschancen Name)",
@@ -192,7 +193,7 @@
         "TargetType": "Money",
         "Transform": "decimal:de",
         "SortOrder": 30,
-        "$hinweis": "WritePolicy=Always - das ist der Fachwert aus der Quelle. ACHTUNG: Steht der Umsatzmodus der Chance auf systemberechnet (isrevenuesystemcalculated), ist das Feld schreibgeschuetzt und der Wert wird still ignoriert. Phase 0 liest das Kennzeichen mit, der Prueflauf meldet den Widerspruch (Review A6).",
+        "$hinweis": "Review A6 geklaert: isrevenuesystemcalculated ist bei allen geprueften Chancen False, der Umsatz ist also benutzerdefiniert und estimatedvalue beschreibbar. Kein Widerspruch zu den Positionen.",
         "WritePolicy": "Always"
       },
       {
@@ -238,31 +239,31 @@
         "TargetField": "transactioncurrencyid",
         "TargetType": "Lookup",
         "LookupEntitySet": "transactioncurrencies",
-        "DefaultValue": "KLAEREN_ISO_WAEHRUNGSCODE",
+        "DefaultValue": "EUR",
         "SortOrder": 70,
-        "$hinweis": "Spalte \"Waehrung\" ist in der Datei durchgaengig leer. Der Altflow verdrahtet die GUID be7f5393-... fest (B9). Standardwaehrung als ISO-Code in die Laufzeitkonfiguration, nicht in den Code.",
+        "$hinweis": "Spalte „Waehrung“ ist in der Datei durchgaengig leer. Die im Altflow fest verdrahtete GUID be7f5393-3f5d-ed11-9561-0022489c8366 wurde aufgeloest: sie ist EUR (B9 geklaert). Steht jetzt als ISO-Code, nicht als GUID - damit ueberlebt der Wert den Umzug Test -> Produktion.",
         "LookupKeyField": "isocurrencycode",
         "WritePolicy": "OnCreateOnly"
       },
       {
         "SourceColumn": "Technische Prüfung",
-        "TargetField": "KLAEREN",
+        "TargetField": "cr570_technicalaudit_lookup",
         "TargetType": "Lookup",
         "LookupEntitySet": "cr570_technicalaudit_lookups",
         "LookupKeyField": "cr570_newcolumn",
-        "Active": false,
+        "Active": true,
         "SortOrder": 80,
-        "$hinweis": "B7: Der Flow fragt diese Tabelle je Zeile ab, schreibt das Ergebnis in die Variable TechnicalAudit - und liest sie nie. Zielfeld unbekannt. Bis zur Klaerung inaktiv."
+        "$hinweis": "B7 geklaert: Zielfeld ist cr570_technicalaudit_lookup an der Verkaufschance, Schluessel cr570_newcolumn. Der Altflow fragt die Tabelle ab und verwirft das Ergebnis - hier landet es im CRM."
       },
       {
         "SourceColumn": "Produktgruppe",
-        "TargetField": "KLAEREN",
+        "TargetField": "cr570_productlinie_lookup",
         "TargetType": "Lookup",
         "LookupEntitySet": "cr570_productline_lookups",
         "LookupKeyField": "cr570_newcolumn",
-        "Active": false,
+        "Active": true,
         "SortOrder": 90,
-        "$hinweis": "B7, wie oben."
+        "$hinweis": "B7 geklaert. FALLE: Das Feld heisst cr570_productLINIE_lookup, die Zieltabelle aber cr570_productLINE_lookup. Nicht angleichen."
       },
       {
         "SourceColumn": "Mitarbeiter",
@@ -285,7 +286,7 @@
         "TargetField": "opportunityid",
         "TargetType": "Lookup",
         "LookupEntitySet": "opportunities",
-        "LookupKeyField": "KLAEREN_dag_oppid",
+        "LookupKeyField": "new_dagextopid",
         "Required": true,
         "Transform": "trim",
         "SortOrder": 10,
@@ -302,10 +303,10 @@
       {
         "SourceColumn": "Länge (mm)",
         "TargetField": "dag_lengthmm",
-        "TargetType": "Decimal",
-        "Transform": "decimal:de|zero2null",
+        "TargetType": "String",
+        "Transform": "zero2null",
         "SortOrder": 30,
-        "$hinweis": "Nur 9 von 206 Zeilen haben Werte !=0. Die 0 bedeutet \"nicht erfasst\" (Datenanalyse 8).",
+        "$hinweis": "dag_lengthmm ist in Dataverse ein TEXTfeld, kein Dezimalfeld - trotz Masseinheit. decimal:de waere hier falsch. Nur 9 von 206 Zeilen haben Werte !=0; die 0 bedeutet „nicht erfasst“ (Datenanalyse 8).",
         "WritePolicy": "Always"
       },
       {
@@ -335,44 +336,47 @@
       {
         "SourceColumn": "Einzelpreis",
         "TargetField": "dag_einzelpreis",
-        "TargetType": "Money",
+        "TargetType": "Decimal",
         "Transform": "decimal:de|empty2null",
         "SortOrder": 70,
-        "WritePolicy": "Always"
+        "WritePolicy": "Always",
+        "$hinweis": "Typ gegen die Dataverse-Metadaten korrigiert: das Feld ist Decimal, nicht Money. Money-Felder fuehren eine Waehrung und ein _base-Feld mit; eine Verwechslung faellt erst beim Schreiben auf."
       },
       {
         "SourceColumn": "MTZ absolut",
         "TargetField": "new_dag_materialteuerungszuschlagmtzabsolut",
-        "TargetType": "Money",
+        "TargetType": "Decimal",
         "Transform": "decimal:de|empty2null",
         "SortOrder": 80,
-        "WritePolicy": "Always"
+        "WritePolicy": "Always",
+        "$hinweis": "Typ gegen die Dataverse-Metadaten korrigiert: das Feld ist Decimal, nicht Money. Money-Felder fuehren eine Waehrung und ein _base-Feld mit; eine Verwechslung faellt erst beim Schreiben auf."
       },
       {
         "SourceColumn": "Breite (mm)",
-        "TargetField": "KLAEREN_dag_widthmm",
-        "TargetType": "Decimal",
-        "Active": false,
+        "TargetField": "dag_widemm",
+        "TargetType": "String",
+        "Active": true,
         "SortOrder": 90,
-        "$hinweis": "Nur 9 von 206 Zeilen haben Werte !=0. Die 0 bedeutet \"nicht erfasst\" (Datenanalyse 8).",
-        "Transform": "decimal:de|zero2null"
+        "$hinweis": "B8 geklaert: dag_widemm (Text). Nicht dag_widthmm - der Name war geraten und haette nicht existiert.",
+        "Transform": "zero2null"
       },
       {
         "SourceColumn": "Höhe (mm)",
-        "TargetField": "KLAEREN_dag_heightmm",
-        "TargetType": "Decimal",
-        "Active": false,
+        "TargetField": "dag_heightmm",
+        "TargetType": "String",
+        "Active": true,
         "SortOrder": 100,
-        "$hinweis": "Nur 9 von 206 Zeilen haben Werte !=0. Die 0 bedeutet \"nicht erfasst\" (Datenanalyse 8).",
-        "Transform": "decimal:de|zero2null"
+        "$hinweis": "B8 geklaert: dag_heightmm (Text).",
+        "Transform": "zero2null"
       },
       {
         "SourceColumn": "Zeichnungsnummer",
-        "TargetField": "KLAEREN",
+        "TargetField": "new_zeichnungsid",
         "TargetType": "String",
-        "Active": false,
+        "Active": true,
         "SortOrder": 110,
-        "$hinweis": "Der Altflow liest \"Zeichennummer\" - die Spalte heisst aber \"Zeichnungsnummer\". Der Ausdruck liefert null, die Nummer geht bei jedem Lauf verloren (Datenanalyse 3). Zielfeld MUSS Text sein: die Werte sind teils numerisch (226223114), teils alphanumerisch (4550A-A2803:002A0, X52620200181)."
+        "$hinweis": "B8 geklaert: new_zeichnungsid (Text) - und Text ist zwingend, die Werte sind teils numerisch (226223114), teils alphanumerisch (4550A-A2803:002A0). Der Altflow liest die Spalte „Zeichennummer“, die es nicht gibt, und verliert die Nummer bei jedem Lauf.",
+        "Transform": "trim|empty2null"
       },
       {
         "SourceColumn": "Preisliste",
@@ -380,7 +384,7 @@
         "TargetType": "String",
         "Active": false,
         "SortOrder": 120,
-        "$hinweis": "B8"
+        "$hinweis": "Gehoert an die VERKAUFSCHANCE (opportunity.pricelevelid), nicht an die Position - Review A7. Der Wert in der Datei lautet „Default Price List fuer Verkaufschancenprodukte“; eine Preisliste dieses Namens existiert in der Testumgebung NICHT (gepruefte Treffer auf „Default“: Polish Zloty, Magyar Forint, Sales Professional Business). Der Text sieht nach einer Oberflaechen-Beschriftung aus, nicht nach einem Datensatznamen. Fachlich zu klaeren, welche Preisliste gemeint ist."
       },
       {
         "SourceColumn": "Status",
@@ -402,12 +406,12 @@
       },
       {
         "SourceColumn": "sonstige Zuschläge",
-        "TargetField": "KLAEREN",
+        "TargetField": "new_dag_sonstigezuschlge",
         "TargetType": "Money",
         "Transform": "decimal:de|empty2null",
-        "Active": false,
+        "Active": true,
         "SortOrder": 85,
-        "$hinweis": "206/206 befuellt, vom Altflow nie gelesen. Zielfeld unbekannt (Datenanalyse 4)."
+        "$hinweis": "206/206 befuellt, vom Altflow nie gelesen. Zielfeld gefunden: new_dag_sonstigezuschlge (Money, beschreibbar)."
       }
     ],
     "SALESPROCESS_STD": [
@@ -424,7 +428,7 @@
         "TargetField": "opportunityid",
         "TargetType": "Lookup",
         "LookupEntitySet": "opportunities",
-        "LookupKeyField": "KLAEREN_dag_oppid",
+        "LookupKeyField": "new_dagextopid",
         "Required": true,
         "Transform": "trim",
         "SortOrder": 20,
@@ -483,7 +487,8 @@
         "keyField": "dag_dihag_kdnr",
         "select": "accountid,dag_dihag_kdnr",
         "quelle": "Anfragen.Firma",
-        "erwartet": 47
+        "erwartet": 47,
+        "$hinweis": "ACHTUNG: dag_dihag_kdnr ist NICHT eindeutig - 15 doppelte Nummern bei 2382 Konten (Stand 02.09.2026). Solange die nicht bereinigt sind, laesst sich kein Alternativschluessel anlegen, und die Aufloesung muss Mehrfachtreffer melden statt den ersten zu nehmen."
       },
       {
         "entitySet": "systemusers",
@@ -507,8 +512,8 @@
       },
       {
         "entitySet": "opportunities",
-        "keyField": "KLAEREN_dag_oppid",
-        "select": "opportunityid,KLAEREN_dag_oppid,statecode,statuscode,name,estimatedvalue,estimatedclosedate,closeprobability,_ownerid_value,_parentcontactid_value,isrevenuesystemcalculated",
+        "keyField": "new_dagextopid",
+        "select": "opportunityid,new_dagextopid,statecode,statuscode,name,estimatedvalue,estimatedclosedate,closeprobability,_ownerid_value,_parentcontactid_value,isrevenuesystemcalculated",
         "erwartet": 72,
         "$hinweis": "statecode ist Pflicht im select: geschlossene Chancen sind schreibgeschuetzt (Review A3). Die uebrigen Felder braucht der Vergleich fuer den Status unveraendert."
       },

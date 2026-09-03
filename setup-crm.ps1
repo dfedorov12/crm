@@ -51,6 +51,12 @@ param(
     # der Standard.
     [switch] $SiteAnlegen,
 
+    # Fuellt CRM_ImportProfiles und CRM_FieldMappings aus
+    # config/import-profile.dihag.json. Wiederholbar: bestehende Zeilen des
+    # Profils werden vorher entfernt, damit kein Mischstand entsteht.
+    [switch] $ProfilLaden,
+    [string] $ProfilDatei = "config/import-profile.dihag.json",
+
     [switch] $NurPruefen,
 
     # Graph-Token statt Connect-MgGraph. Damit laeuft das Skript ohne das
@@ -349,10 +355,127 @@ if ($ksite) {
     )
 
     Write-Host ""
-    Warn "  Von Hand nachzuholen: In CRM_ImportRuns die ANLAGEN aktivieren"
-    Warn "  (Listeneinstellungen > Erweitert > Anlagen zulassen). Dort landet"
-    Warn "  das Vollprotokoll als JSON - ein Textfeld reicht dafuer nicht."
-    Warn "  Ueber Graph laesst sich der Schalter nicht setzen."
+    Write-Host "  Einmalig von Hand, falls noch nicht geschehen: in CRM_ImportRuns die"
+    Write-Host "  ANLAGEN aktivieren (Listeneinstellungen > Erweitert). Dort landet das"
+    Write-Host "  Vollprotokoll als JSON - ein Textfeld reicht dafuer nicht, und ueber"
+    Write-Host "  Graph laesst sich der Schalter nicht setzen."
+}
+
+# ══ 3b · Importprofil in die Listen schreiben ═════════════════════════
+# Die Zuordnung steht fertig in config/import-profile.dihag.json - abgeleitet
+# aus dem Flow-Export, durch die Reviews korrigiert und am 02.09.2026 gegen
+# die Dataverse-Metadaten geprueft. Von Hand abzutippen waere eine Stunde
+# Klickarbeit mit Tippfehlerrisiko in genau den Feldnamen, auf die es ankommt.
+
+if ($ProfilLaden -and $ksite) {
+    Write-Host "`n[3b] Importprofil laden aus $ProfilDatei" -ForegroundColor Yellow
+    $sid = $ksite.id
+
+    if (-not (Test-Path $ProfilDatei)) {
+        Fehl "  Datei nicht gefunden: $ProfilDatei"
+    } else {
+        $prof = Get-Content $ProfilDatei -Raw -Encoding UTF8 | ConvertFrom-Json
+        $name = $prof.profileName
+        Info "  Profil: $name"
+
+        # Wert oder Vorgabe. ConvertFrom-Json liefert fuer fehlende
+        # Eigenschaften $null - das soll nicht als leerer String landen.
+        function W($obj, $feld, $vorgabe = $null) {
+            $v = $obj.PSObject.Properties[$feld]
+            if ($null -eq $v -or $null -eq $v.Value) { return $vorgabe }
+            return $v.Value
+        }
+
+        function Zeilen-Loeschen($liste, $spalte, $werte) {
+            $items = (Gx -Uri "$g/sites/$sid/lists/$liste/items?`$expand=fields&`$top=999").value
+            $weg = @($items | Where-Object { $werte -contains $_.fields.$spalte })
+            foreach ($i in $weg) {
+                Gx -Method DELETE -Uri "$g/sites/$sid/lists/$liste/items/$($i.id)" | Out-Null
+            }
+            if ($weg.Count) { Write-Host "    $liste`: $($weg.Count) alte Zeile(n) entfernt" }
+        }
+
+        $keys = @($prof.mappings.PSObject.Properties.Name)
+
+        if ($NurPruefen) {
+            $anz = ($keys | ForEach-Object { $prof.mappings.$_.Count } | Measure-Object -Sum).Sum
+            Warn "  Nur-Pruefen-Modus: es wuerden $($prof.steps.Count) Schritte und $anz Zuordnungen geschrieben."
+        } else {
+            # ── Schritte ────────────────────────────────────────────────
+            Zeilen-Loeschen "CRM_ImportProfiles" "Title" @($name)
+            foreach ($s in $prof.steps) {
+                $body = @{
+                    Title        = $name
+                    Step         = $s.Step
+                    EntitySet    = $s.EntitySet
+                    Mode         = $s.Mode
+                    OnMissingKey = W $s "OnMissingKey" "Fail"
+                    BatchSize    = W $s "BatchSize" 100
+                    StopOnError  = [bool](W $s "StopOnError" $false)
+                    SkipIfClosed = [bool](W $s "SkipIfClosed" $false)
+                    Active       = [bool](W $s "Active" $true)
+                }
+                # Optionale Felder nur senden, wenn sie einen Wert haben.
+                # SharePoint legte sonst Leerstrings an, und "" ist etwas
+                # anderes als "nicht gesetzt".
+                foreach ($k in @("SourceSheet","MappingKey","AlternateKey",
+                                 "ParentField","ReplaceScope")) {
+                    $v = W $s $k
+                    if ($null -ne $v) { $body[$k] = $v }
+                }
+                Gx -Method POST -Uri "$g/sites/$sid/lists/CRM_ImportProfiles/items" `
+                   -Body @{ fields = $body } | Out-Null
+                Info "    Schritt $($s.Step) $($s.EntitySet) ($($s.Mode))"
+            }
+
+            # ── Feldzuordnungen ─────────────────────────────────────────
+            Zeilen-Loeschen "CRM_FieldMappings" "MappingKey" $keys
+            foreach ($mk in $keys) {
+                $n = 0
+                foreach ($m in $prof.mappings.$mk) {
+                    $body = @{
+                        Title      = "$(W $m "SourceColumn" (W $m "TargetField" "?"))"
+                        MappingKey = $mk
+                        SortOrder  = W $m "SortOrder" 0
+                        # KLAEREN-Ziele werden bewusst MIT geschrieben, aber
+                        # inaktiv: sichtbar offen ist besser als unsichtbar
+                        # weggelassen.
+                        Active     = [bool](W $m "Active" $true) -and
+                                     -not ("$(W $m "TargetField")" -like "KLAEREN*")
+                    }
+                    foreach ($k in @("SourceColumn","SourceSheet","SourceLookupBy","TargetField",
+                                     "TargetType","LookupEntitySet","LookupKeyField",
+                                     "OnLookupFail","WritePolicy","Transform","DefaultValue")) {
+                        $v = W $m $k
+                        if ($null -ne $v) { $body[$k] = $v }
+                    }
+                    foreach ($k in @("IsKey","Required")) {
+                        $v = W $m $k
+                        if ($null -ne $v) { $body[$k] = [bool]$v }
+                    }
+                    $ml = W $m "MaxLength"
+                    if ($null -ne $ml) { $body["MaxLength"] = $ml }
+
+                    Gx -Method POST -Uri "$g/sites/$sid/lists/CRM_FieldMappings/items" `
+                       -Body @{ fields = $body } | Out-Null
+                    $n++
+                }
+                Info "    $mk`: $n Zuordnung(en)"
+            }
+
+            Write-Host ""
+            Warn "  Inaktiv geschrieben, weil das Zielfeld fachlich offen ist:"
+            foreach ($mk in $keys) {
+                foreach ($m in $prof.mappings.$mk) {
+                    if ("$(W $m "TargetField")" -like "KLAEREN*") {
+                        Warn "    $mk / $(W $m "SourceColumn")"
+                    }
+                }
+            }
+        }
+    }
+} elseif ($ProfilLaden) {
+    Warn "`n[3b] Importprofil nicht geladen - die Konfigurationssite fehlt."
 }
 
 # ══ 4 · Haupt-Administrator in AppPermissions ═════════════════════════

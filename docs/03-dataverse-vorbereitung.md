@@ -30,11 +30,84 @@ befüllbar und stabil sein.
 
 ### Was für DIHAG konkret gebraucht wird
 
+**Stand 02.09.2026, direkt aus der Testumgebung ausgelesen** — nicht mehr
+vermutet:
+
 | Tabelle | Schlüsselfeld | Quelle in Excel | Status |
 |---|---|---|---|
-| `account` | `dag_dihag_kdnr` | `Firma` | Feld existiert. **Eindeutigkeit prüfen**, dann Schlüssel anlegen. |
-| `opportunity` | **offen** | `Opp-ID` | Feld vermutlich nicht vorhanden — siehe unten |
-| `contact` | `emailaddress1` | `Kontaktemail` | Sonderfall, siehe unten |
+| `account` | `dag_dihag_kdnr` (Integer) | `Firma` | Feld existiert. **Nicht eindeutig — 15 doppelte Nummern.** Schlüssel derzeit nicht anlegbar, siehe unten. |
+| `opportunity` | **`new_dagextopid` (Integer)** | `Opp-ID` | Feld existiert und passt. **213 Chancen müssen nachgepflegt werden**, siehe unten. |
+| `contact` | — | `Kontaktemail` | Kein Schlüssel, Auflösung per `$filter` (Review A1) |
+
+**Auf keiner der drei Tabellen existiert bisher ein Alternativschlüssel.**
+
+### `opportunity`: das Feld gibt es — und es passt
+
+`new_dagextopid` ist ein Integer-Feld an der Verkaufschance. Geprüft an 200
+Datensätzen, bei denen es gefüllt ist:
+
+```
+Name #NNNN stimmt mit new_dagextopid überein:  200 von 200
+weicht ab:                                       0
+Name ohne #-Präfix:                              0
+```
+
+Damit ist Befund B2 lösbar: Alternativschlüssel auf `new_dagextopid`, und der
+`startswith`-Präfixvergleich entfällt.
+
+**Aber es hat eine Lücke.** Von 4.805 Verkaufschancen tragen 1.734 einen
+Namen mit `#`-Präfix, aber nur 1.525 haben `new_dagextopid` gesetzt — und
+seit dem **29.05.2026** wird es gar nicht mehr gefüllt.
+
+```
+Name beginnt mit #, aber new_dagextopid leer:  213
+```
+
+Diese 213 müssen **vor dem ersten Lauf** nachgepflegt werden: Präfix aus
+`name` ziehen, als Zahl in `new_dagextopid` schreiben. Sonst findet der
+Import sie nicht und legt sie neu an — Dubletten für jede davon.
+
+### `account`: der Schlüssel geht noch nicht
+
+`dag_dihag_kdnr` ist ein Integer — das beantwortet nebenbei die Frage, ob die
+Spalte `Firma` die Kundennummer oder den Namen führt: die **Nummer**. Der
+Filter des Altflows ohne Anführungszeichen war der richtige Hinweis.
+
+Von 2.382 Konten mit Kundennummer sind **15 Nummern doppelt vergeben**. Ein
+Alternativschlüssel indiziert alle Datensätze, auch deaktivierte — er bliebe
+also auf `Fehlgeschlagen` stehen.
+
+Acht der fünfzehn sind harmlose Dublettenreste: ein aktives und ein
+deaktiviertes Konto, meist mit Tippfehler im Namen (`Müller Präzision` /
+`Müller Präzsion`). Dort genügt es, die Nummer am deaktivierten Datensatz zu
+leeren.
+
+**Sieben haben zwei aktive Konten**, und das sind teils verschiedene Firmen:
+
+| Nummer | Konto A | Konto B |
+|---|---|---|
+| 13000006 | MAN Diesel & Turbo France SAS | MAN Energy Solutions UK Ltd. |
+| 32000000 | LEAG Gruppe | Leistritz Gruppe |
+| 35100005 | StarragHeckert GmbH | Starrag S.A.S. |
+| 47000004 | Siemens Energy Global | Siemens Energy Compressor GmbH |
+| 99901016 | Bureau Mertens sprl | Loco Master Sp. z o.o. |
+| 99901663 | OMF Srl Industria | Schabmüller Automobiltechnik GmbH |
+| 99901855 | PSG Procurement Services GmbH | Private Aktiengesellschaft |
+
+Das ist keine Importfrage, sondern ein Stammdatenproblem. Solange es besteht,
+läuft Schritt 10 als `LookupOnly` über `$filter` weiter — die Auflösungsphase
+muss Mehrfachtreffer aber **melden** statt den ersten zu nehmen.
+
+### Weitere Befunde aus derselben Prüfung
+
+| Frage | Antwort |
+|---|---|
+| Ist `estimatedvalue` schreibbar? (Review A6) | **Ja.** `isrevenuesystemcalculated` ist bei allen geprüften Chancen `False` — der Umsatz ist benutzerdefiniert. Kein Widerspruch zu den Positionen. |
+| Welche Währung verbirgt sich hinter der GUID `be7f5393-…`? (B9) | **EUR.** Steht jetzt als ISO-Code im Profil statt als GUID. |
+| Zielfelder für Breite / Höhe / Zeichnungsnummer? (B8) | `dag_widemm`, `dag_heightmm`, `new_zeichnungsid` — **alle drei Textfelder.** Der geratene Name `dag_widthmm` existiert nicht. |
+| Zielfelder für Technische Prüfung / Produktgruppe? (B7) | `cr570_technicalaudit_lookup` und `cr570_productlinie_lookup` an der Verkaufschance. Falle: das Feld heißt `productLINIE`, die Zieltabelle `productLINE`. |
+| Preisliste? (A7) | Eine Preisliste namens „Default Price List für Verkaufschancenprodukte" **existiert nicht**. Der Text sieht nach einer Oberflächen-Beschriftung aus. Bleibt fachlich offen. |
+| Sind `Länge`, `Einzelpreis`, `MTZ` richtig typisiert? | Teilweise nicht. `dag_lengthmm` ist **Text**, nicht Dezimal; `dag_einzelpreis` und `new_dag_materialteuerungszuschlagmtzabsolut` sind **Decimal**, nicht Money. Im Profil korrigiert. |
 
 Andere Tabellen brauchen keinen Schlüssel: `opportunityproducts` und
 `opportunitysalesprocesses` werden ausschließlich über ihre Verkaufschance
