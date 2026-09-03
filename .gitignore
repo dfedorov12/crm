@@ -1,2 +1,5 @@
-# Nichts zu ignorieren: Die Seite wird ohne Build ausgeliefert, es gibt
-# weder node_modules noch dist. Datei bleibt als Platzhalter bestehen.
+# Berichte der Aufräumskripte. Sie enthalten Verkaufschancen-Namen und damit
+# Kundenbezug - das Repo ist öffentlich. Die Datei gehört zur Durchsicht auf
+# den Rechner, nicht hierher.
+aufraeumen-b1-bericht.csv
+*-bericht.csv
