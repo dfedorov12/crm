@@ -1,5 +1,47 @@
 # Session-Log
 
+## 02.09.2026 — Infrastruktur steht
+
+Alles eingerichtet, was die App braucht, bevor sie Daten anfassen kann.
+
+| | Stand |
+|---|---|
+| Entra: Umleitungs-URI, alle vier Berechtigungen erteilt | ✅ |
+| `dataverseUrl` = `https://dihag-test.crm4.dynamics.com` | ✅ |
+| Quellbibliothek `Austausch` + vier Statusspalten | ✅ |
+| Konfigurationssite `/teams/crm-integration` | ✅ |
+| Fünf `CRM_*`-Listen (21 / 24 / 12 / 23 / 17 Spalten) | ✅ |
+| `AppPermissions`-Eintrag für `crm` | ✅ |
+
+**Zwei Stolpersteine, die Zeit gekostet haben und deshalb dokumentiert sind:**
+
+`admin-consent` erteilt nur, was **deklariert** ist — und ersetzt dabei die
+bestehende Zustimmung. Für Graph war nur `User.Read` deklariert, zugestimmt
+waren aber auch `Sites.ReadWrite.All` und `offline_access`. Beide fielen weg,
+und ohne `offline_access` gibt es keinen Refresh-Token — also auch kein
+Dataverse-Token. Die Zustimmung für Dataverse allein half nichts. Regel in
+`docs/01`: erst deklarieren, dann zustimmen.
+
+Die Konfigurationssite liegt unter **`/teams/crm-integration`**, nicht unter
+`/sites/CRM-Integration`. Der Tenant benutzt den verwalteten Pfad `/teams/`
+und den `mailNickname` der Gruppe statt ihres Anzeigenamens.
+
+**Was nicht ging:** Listen und Spalten mit dem Token der Azure CLI anlegen.
+Der trägt keinen `Sites.*`-Scope, und Microsoft hat die CLI dafür nicht
+vorautorisiert (`AADSTS65002`) — keine Zustimmungsfrage, sondern eine
+Vorautorisierung, die es nicht gibt. Gelaufen ist es dann über
+`Connect-MgGraph` mit dem Teilmodul `Microsoft.Graph.Authentication`.
+
+**Fehler im eigenen Skript**, durch den Trockenlauf gefunden:
+`Ensure-Columns` lief auch für noch nicht existierende Listen und brach
+mitten im Bericht mit 404 ab. Eine fehlende Liste ist jetzt eine Zeile im
+Bericht statt eines Abbruchs.
+
+**Noch offen:** Alternativschlüssel an `opportunity` für die Opp-ID
+(Befund B2) und die Anlagen in `CRM_ImportRuns` (über Graph nicht setzbar).
+
+---
+
 ## 02.09.2026 — Phase 1 und 2: Gerüst, Anmeldung, Selbsttest
 
 **Ausgangslage.** Spezifikation und Analysen lagen fertig vor (`docs/00`–`07`).
