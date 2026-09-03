@@ -274,6 +274,37 @@ table.tbl tr.off { opacity: .55; }
 .pill.gruen { background: var(--green-bg); color: var(--green); }
 .pill.grau  { background: var(--border-2); color: var(--muted); }
 
+.tbl-wrap { overflow-x: auto; }
+table.tbl td.actions { white-space: nowrap; text-align: right; }
+
+/* Dateiname und Excel-Spaltennamen sind INHALT, keine Beschriftung. Die
+   Versalien der Hausvorlage würden sie verfälschen – „Breite (mm)“ soll in
+   der Vorschau genauso dastehen wie in der Datei, sonst erkennt sie
+   niemand wieder. */
+h3.section.dateiname { text-transform: none; letter-spacing: 0; font-size: 15px; color: var(--navy); }
+table.tbl.roh th { text-transform: none; letter-spacing: 0; font-size: 12px; }
+td.zeilennr { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.leer { color: var(--border); }
+
+/* Blattauswahl in der Vorschau */
+#blattWahl { margin: 4px 0 16px; }
+#blattWahl button.aktiv {
+  background: var(--azur); color: #fff; border-color: var(--azur);
+}
+#blattWahl .zahl {
+  display: inline-block; margin-left: 6px; padding: 1px 7px;
+  border-radius: 999px; background: var(--border-2); color: var(--muted);
+  font-size: 11px; font-weight: 700;
+}
+#blattWahl button.aktiv .zahl { background: rgba(255,255,255,.25); color: #fff; }
+
+.warn {
+  font-size: 13.5px; color: #7a4a00;
+  background: #fdf4e6; border-left: 3px solid var(--orange);
+  padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 0 0 16px;
+}
+.warn code, .err code, .ok code { background: rgba(0,0,0,.05); padding: 1px 4px; border-radius: 4px; }
+
 /* ── Fuß ──────────────────────────────────────────────────────────── */
 
 footer {

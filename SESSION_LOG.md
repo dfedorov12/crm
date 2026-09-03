@@ -1,5 +1,42 @@
 # Session-Log
 
+## 02.09.2026 — Phase 3: Dateien aus SharePoint
+
+Erste Phase mit echten Daten. `js/spFiles.js` (Bibliothek auflisten, Datei
+laden, Status setzen) und `js/excel.js` (SheetJS-Kapsel), dazu Schritt 3 in
+der Oberfläche: Mappenliste mit Importstatus, Vorschau je Blatt mit den
+ersten 20 Zeilen.
+
+**Zwei Fallen, die hier eingebaut sind, weil der Altflow in beide tritt:**
+
+*Kopfzeilen werden normalisiert.* „Breite (mm) “ und „Höhe (mm) “ haben in
+der echten Datei ein Leerzeichen am Ende; ein exakter Vergleich träfe nie
+und der Wert ginge stumm verloren. Die Vorschau meldet, welche Kopfzeile
+angefasst werden musste — dann weiß man, dass die Vorlage unsauber ist,
+ohne dass der Import daran scheitert.
+
+*Die echte Excel-Zeilennummer wird mitgeführt.* Jede Zeile trägt `_zeile`,
+die Nummer wie in Excel sichtbar. Beinahe wäre das schiefgegangen: mit
+`blankrows: false` entfernt SheetJS Leerzeilen aus dem Array und alle
+folgenden Zeilennummern verschieben sich. Jetzt `blankrows: true`, und das
+Überspringen passiert dort, wo der Index noch stimmt.
+
+**Testbar gemacht.** Die Umsetzung von Rohzeilen in Zeilenobjekte steckt in
+`blattAus()` — ohne SheetJS, ohne Browser. `tests/test-excel.mjs` prüft sie
+mit den Eigenheiten aus `docs/06`: 18 Prüfungen, unter anderem dass eine
+Leerzeile die Nummern der folgenden nicht verschiebt (2, 3, **5**).
+
+**Zwei Darstellungsfehler gefunden und behoben:** Die Hausvorlage setzt
+Abschnittsüberschriften und Tabellenköpfe in Versalien. Für Dateinamen und
+Excel-Spaltennamen ist das falsch — beides ist Inhalt, keine Beschriftung.
+„BREITE (MM)“ erkennt niemand als seine Spalte wieder.
+
+Geprüft im Browser mit einer echten, zur Laufzeit erzeugten Mappe: beide
+Blätter erkannt, zwei Kopfzeilen normalisiert gemeldet, Zeilennummern
+2/3/5 korrekt, keine Konsolenfehler.
+
+---
+
 ## 02.09.2026 — Infrastruktur steht
 
 Alles eingerichtet, was die App braucht, bevor sie Daten anfassen kann.

@@ -155,13 +155,15 @@ const GRAPH = (() => {
     return gefunden.id;
   }
 
-  /** Inhalt eines Ordners in einer Bibliothek. Leerer Pfad = Wurzel. */
-  async function ordnerInhalt(driveIdOrPath, ordner = "") {
+  /** Inhalt eines Ordners in einer Bibliothek. Leerer Pfad = Wurzel.
+   *  @param {string} [query] Zusatz an die Abfrage, z. B.
+   *    "$expand=listItem($expand=fields)" für die Statusspalten. */
+  async function ordnerInhalt(driveIdOrPath, ordner = "", query = "") {
     const p = String(ordner || "").replace(/^\/+|\/+$/g, "");
     const ziel = p
       ? `/drives/${driveIdOrPath}/root:/${encodeURI(p)}:/children`
       : `/drives/${driveIdOrPath}/root/children`;
-    return callAll(ziel);
+    return callAll(ziel + (query ? "?" + query : ""));
   }
 
   /* ── Spaltennamen-Toleranz ────────────────────────────────────────────

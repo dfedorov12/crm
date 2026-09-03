@@ -33,5 +33,8 @@ jobs:
           done
           exit $fehler
 
+      - name: Einlesen der Arbeitsmappe (Kopfzeilen, Zeilennummern)
+        run: node tests/test-excel.mjs
+
       - name: Konfiguration, Ladereihenfolge und Doku auf Konsistenz prüfen
         run: node tests/test-konsistenz.mjs

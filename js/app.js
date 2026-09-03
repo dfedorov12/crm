@@ -140,7 +140,7 @@ const APP = (() => {
 
   const SCHRITTE = [
     { id: "start",     nr: "",  titel: "Start",        aktiv: true },
-    { id: "datei",     nr: "3", titel: "Datei wählen", aktiv: false },
+    { id: "datei",     nr: "3", titel: "Datei wählen", aktiv: true },
     { id: "zuordnung", nr: "4", titel: "Zuordnung",    aktiv: false },
     { id: "pruefung",  nr: "5", titel: "Prüflauf",     aktiv: false },
     { id: "import",    nr: "6", titel: "Import",       aktiv: false },
@@ -162,6 +162,161 @@ const APP = (() => {
     for (const b of $("tabBar").querySelectorAll("button"))
       b.classList.toggle("active", b.dataset.ziel === id);
     if (id === "start") renderStart();
+    if (id === "datei") renderDatei();
+  }
+
+  /* ── Schritt 3: Datei wählen ───────────────────────────────────────── */
+
+  /** Aktueller Stand: gewählte Datei und die eingelesene Mappe. Liegt
+   *  bewusst nur im Arbeitsspeicher – die Datei bleibt in SharePoint. */
+  let _datei = null;
+  let _mappe = null;
+
+  const datum = s => s ? new Date(s).toLocaleString("de-DE",
+    { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+
+  /** Zellwert für die Vorschau. Date, Zahl, null und Text sehen sonst
+   *  gleich aus – und „null“ als Text wäre eine Lüge. */
+  function zelle(v) {
+    if (v === null || v === undefined || v === "") return '<span class="leer">–</span>';
+    if (v instanceof Date) return esc(v.toLocaleDateString("de-DE"));
+    return esc(String(v));
+  }
+
+  async function renderDatei() {
+    $("main").innerHTML = `
+      <div class="page-head">
+        <h2>Datei wählen</h2>
+        <p>Die Mappen liegen in <code>${esc(C.quellSite.split(":").pop())}</code> ▸
+           <code>${esc(C.quellDrive)}</code> ▸ <code>${esc(C.quellOrdner)}</code> –
+           dort, wo Timeline sie ablegt. Sie werden gelesen, nicht verschoben
+           und nicht verändert.</p>
+      </div>
+      <div class="card"><h4>📂 Verfügbare Mappen</h4><div id="dateiListe">Wird geladen …</div></div>
+      <div id="vorschau"></div>`;
+
+    try {
+      const dateien = await SPFILES.liste();
+      if (!dateien.length) {
+        $("dateiListe").innerHTML = '<p class="hint">Keine Excel-Mappen im Ordner gefunden.</p>';
+        return;
+      }
+      $("dateiListe").innerHTML = `
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr>
+            <th>Datei</th><th>Geändert</th><th>Von</th><th>Größe</th>
+            <th>Status</th><th></th>
+          </tr></thead>
+          <tbody>${dateien.map((d, i) => `
+            <tr>
+              <td><b>${esc(d.name)}</b></td>
+              <td>${esc(datum(d.geaendert))}</td>
+              <td>${esc(d.geaendertVon)}</td>
+              <td>${esc(d.groesse)}</td>
+              <td><span class="pill ${d.status === "Importiert" ? "gruen" : "grau"}">${esc(d.status)}</span></td>
+              <td class="actions"><button class="btn sm" data-i="${i}">Öffnen</button></td>
+            </tr>`).join("")}
+          </tbody>
+        </table></div>`;
+
+      for (const b of $("dateiListe").querySelectorAll("button[data-i]"))
+        b.onclick = () => oeffnen(dateien[+b.dataset.i], b);
+
+    } catch (e) {
+      $("dateiListe").innerHTML = `<p class="err">${esc(e.detail || e.message)}</p>`;
+    }
+  }
+
+  async function oeffnen(d, btn) {
+    const ziel = $("vorschau");
+    btn.disabled = true; btn.textContent = "Lädt …";
+    ziel.innerHTML = '<div class="card"><p class="hint">Datei wird geladen und gelesen …</p></div>';
+    try {
+      const buf = await SPFILES.laden(d);
+      _datei = d;
+      _mappe = await EXCEL.lesen(buf);
+      renderVorschau();
+    } catch (e) {
+      ziel.innerHTML = `<div class="card"><p class="err">${esc(e.detail || e.message)}</p></div>`;
+    } finally {
+      btn.disabled = false; btn.textContent = "Öffnen";
+    }
+  }
+
+  function renderVorschau() {
+    const erwartet = ["Anfragen", "Positionen"];
+    const fehlend = erwartet.filter(n => !EXCEL.blatt(_mappe, n));
+    const normAlle = _mappe.blaetter.flatMap(b =>
+      b.normalisiert.map(n => ({ blatt: b.name, ...n })));
+    const doppeltAlle = _mappe.blaetter.flatMap(b =>
+      b.doppelt.map(k => ({ blatt: b.name, k })));
+
+    $("vorschau").innerHTML = `
+      <h3 class="section dateiname">${esc(_datei.name)}</h3>
+
+      ${_datei.status === "Importiert" ? `<p class="warn">Diese Datei ist bereits
+        als <b>importiert</b> markiert${_datei.importiertAm ? " (" + esc(datum(_datei.importiertAm)) + ")" : ""}.
+        Ein Wiederholungslauf ist erlaubt und dank Upsert über Alternativschlüssel
+        gefahrlos – aber sieh vorher nach, ob er beabsichtigt ist.</p>` : ""}
+
+      ${fehlend.length
+        ? `<p class="err">Erwartete Blätter fehlen: <b>${esc(fehlend.join(", "))}</b>.
+           Vorhanden: ${esc(_mappe.blaetter.map(b => b.name).join(", "))}.</p>`
+        : `<p class="ok">Beide erwarteten Blätter vorhanden – die Annahme über die
+           Dateistruktur stimmt.</p>`}
+
+      ${normAlle.length ? `<p class="warn"><b>${normAlle.length} Kopfzeile(n) normalisiert.</b>
+        Die Vorlage ist an diesen Stellen unsauber; der Import läuft trotzdem, weil
+        die Zuordnung gegen die normalisierte Fassung arbeitet:<br>
+        ${normAlle.map(n => `<code>${esc(n.blatt)}</code>: „${esc(n.roh)}“ → „${esc(n.normal)}“`).join("<br>")}</p>` : ""}
+
+      ${doppeltAlle.length ? `<p class="err"><b>Doppelte Spaltennamen:</b>
+        ${doppeltAlle.map(x => `<code>${esc(x.blatt)}</code>: ${esc(x.k)}`).join(", ")}.
+        Die jeweils zweite Spalte überschreibt die erste.</p>` : ""}
+
+      <div class="row" id="blattWahl">
+        ${_mappe.blaetter.map((b, i) => `
+          <button class="btn sec sm" data-b="${i}">
+            ${esc(b.name)} <span class="zahl">${b.anzahl}</span>
+          </button>`).join("")}
+      </div>
+      <div id="blattInhalt"></div>`;
+
+    for (const b of $("blattWahl").querySelectorAll("button[data-b]"))
+      b.onclick = () => zeigeBlatt(+b.dataset.b);
+
+    // Erstes nicht leeres Blatt vorbelegen
+    const start = _mappe.blaetter.findIndex(b => b.anzahl > 0);
+    zeigeBlatt(start < 0 ? 0 : start);
+  }
+
+  function zeigeBlatt(idx) {
+    const b = _mappe.blaetter[idx];
+    for (const btn of $("blattWahl").querySelectorAll("button[data-b]"))
+      btn.classList.toggle("aktiv", +btn.dataset.b === idx);
+
+    if (!b || !b.anzahl) {
+      $("blattInhalt").innerHTML = `<div class="card"><p class="hint">Blatt
+        „${esc(b ? b.name : "?")}“ enthält keine Datenzeilen.</p></div>`;
+      return;
+    }
+
+    const zeigen = b.zeilen.slice(0, 20);
+    $("blattInhalt").innerHTML = `
+      <div class="card">
+        <h4>${esc(b.name)}</h4>
+        <p class="hint">${b.anzahl} Datenzeilen, ${b.kopfzeilen.length} Spalten.
+           Angezeigt: die ersten ${zeigen.length}. Die Spalte <b>Zeile</b> ist die
+           Zeilennummer wie in Excel sichtbar – Fehlermeldungen verweisen später
+           genau darauf.</p>
+        <div class="tbl-wrap"><table class="tbl roh">
+          <thead><tr><th>Zeile</th>${b.kopfzeilen.map(k => `<th>${esc(k)}</th>`).join("")}</tr></thead>
+          <tbody>${zeigen.map(z => `<tr>
+            <td class="zeilennr">${z._zeile}</td>
+            ${b.kopfzeilen.map(k => `<td>${zelle(z[k])}</td>`).join("")}
+          </tr>`).join("")}</tbody>
+        </table></div>
+      </div>`;
   }
 
   /* ── Startseite ────────────────────────────────────────────────────── */
